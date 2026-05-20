@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [v0.3.0] - 2026-05-21
+
 ### Added
 
 - Auto-update support via `electron-updater` (GitHub provider). Notifies the user with a Snackbar when a new version is available, downloads and applies the update from the renderer.
