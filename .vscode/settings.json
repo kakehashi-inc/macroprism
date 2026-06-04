@@ -11,8 +11,5 @@
     "**/release": true,
     "**/dist": true,
     "**/node_modules": true
-  },
-  "files.exclude": {
-    "**/release": true
   }
 }
