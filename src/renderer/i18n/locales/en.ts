@@ -129,5 +129,8 @@ export default {
         later: 'Later',
         downloading: 'Downloading... {{progress}}%',
         installing: 'Applying update...',
+        error: 'Failed to download the update.',
+        retry: 'Retry',
+        close: 'Close',
     },
 };

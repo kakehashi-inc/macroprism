@@ -129,5 +129,8 @@ export default {
         later: '後で',
         downloading: 'ダウンロード中… {{progress}}%',
         installing: 'アップデートを適用しています…',
+        error: 'アップデートのダウンロードに失敗しました。',
+        retry: '再試行',
+        close: '閉じる',
     },
 };

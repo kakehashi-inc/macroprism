@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Auto-update now works on macOS. Previously, starting an update did nothing and showed no progress or error. (Note: this fix takes effect from the next release onward. If you are on the current version, please install the new version manually once; auto-update will work after that.)
+- Starting an update now always shows feedback. A progress bar appears immediately while downloading, and if the download fails, a clear error message with **Retry** and **Close** options is shown instead of the dialog appearing to hang.
+- Update checks that run quietly in the background (for example, when you are offline) no longer pop up an error. Errors are only shown for updates you started yourself.
+
 ## [v0.3.0] - 2026-05-21
 
 ### Added
