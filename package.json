@@ -1,6 +1,6 @@
 {
   "name": "mcp-server-manager",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "MCP Server Process Manager GUI",
   "main": "dist/main/index.js",
   "engines": {

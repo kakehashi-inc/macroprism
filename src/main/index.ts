@@ -286,6 +286,9 @@ let isQuitting = false;
 app.on('before-quit', async e => {
     if (isQuitting) return;
     e.preventDefault();
+    // Mark quitting up front so the window 'close' handler stops hiding to tray and the native
+    // updater's own quit (during an install) passes straight through this handler.
+    isQuitting = true;
     try {
         // Ensure all child processes are stopped before exiting
         // Treat as user-initiated stop to suppress error/command logs and restarts
@@ -298,8 +301,14 @@ app.on('before-quit', async e => {
         try {
             tray?.destroy();
         } catch {}
-        isQuitting = true;
-        app.exit(0);
+        if (updaterService.isInstalling()) {
+            // An update install is pending: let the native updater quit and relaunch with the new
+            // version. A hard app.exit(0) here would kill the process before Squirrel.Mac finishes
+            // installing, leaving the app on the old version (the macOS auto-update bug).
+            updaterService.finalizeInstall();
+        } else {
+            app.exit(0);
+        }
     }
 });
 

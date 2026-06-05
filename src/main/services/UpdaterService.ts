@@ -1,4 +1,4 @@
-import { BrowserWindow } from 'electron';
+import { app, BrowserWindow } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import { IPC_CHANNELS } from '../../shared/types';
 import type { UpdateState } from '../../shared/types';
@@ -18,6 +18,10 @@ class UpdaterService {
     private downloadRequested = false;
     private startupCheckScheduled = false;
     private initialized = false;
+    // Set once the user (or the auto-install-on-download path) commits to installing. The app
+    // 'before-quit' handler reads this to skip its hard app.exit(0) and instead hand termination
+    // and relaunch to the native updater, so the process is not killed mid-install on macOS.
+    private installing = false;
 
     initialize(): void {
         if (isDev || isPortable) return;
@@ -25,7 +29,12 @@ class UpdaterService {
         this.initialized = true;
 
         autoUpdater.autoDownload = false;
-        autoUpdater.autoInstallOnAppQuit = false;
+        // Keep this true so electron-updater stages the update into the native Squirrel.Mac
+        // updater right after the download finishes (MacUpdater.updateDownloaded triggers the
+        // native checkForUpdates only when this flag is set). If it were false, staging would be
+        // deferred to quitAndInstall time and run asynchronously, racing the app's quit sequence
+        // on macOS so the new version never gets installed.
+        autoUpdater.autoInstallOnAppQuit = true;
         autoUpdater.logger = console;
 
         autoUpdater.on('checking-for-update', () => {
@@ -114,21 +123,41 @@ class UpdaterService {
         return 'Unknown error';
     }
 
+    isInstalling(): boolean {
+        return this.installing;
+    }
+
     quitAndInstall(): void {
         if (isDev || isPortable) return;
+        // Do not close windows or force-exit here. Mark that an install is pending and start the
+        // normal quit; the 'before-quit' handler runs its child-process cleanup and then calls
+        // finalizeInstall(), so the native updater performs the install and relaunch as the very
+        // last step. Closing windows or calling app.exit() ourselves would terminate the process
+        // before Squirrel.Mac finishes, which is the root cause of the "downloaded but not updated"
+        // bug on macOS.
+        this.installing = true;
         setImmediate(() => {
-            for (const w of BrowserWindow.getAllWindows()) {
-                try {
-                    w.removeAllListeners('close');
-                    w.close();
-                } catch {}
-            }
             try {
-                autoUpdater.quitAndInstall(false, true);
+                app.quit();
             } catch (err) {
-                console.error('[updater] quitAndInstall failed:', err);
+                this.installing = false;
+                console.error('[updater] quitAndInstall failed to start quit:', err);
             }
         });
+    }
+
+    // Invoked from the app 'before-quit' handler, after process cleanup, when an install is
+    // pending. Hands quitting and relaunching to the native updater. Because the update was
+    // already staged at download time (autoInstallOnAppQuit=true), this installs synchronously
+    // via squirrelDownloadedUpdate; even if staging is still in flight it completes safely now
+    // that no competing app.exit() follows it.
+    finalizeInstall(): void {
+        if (isDev || isPortable) return;
+        try {
+            autoUpdater.quitAndInstall(false, true);
+        } catch (err) {
+            console.error('[updater] quitAndInstall failed:', err);
+        }
     }
 
     scheduleStartupCheck(window: BrowserWindow, delayMs = 3000): void {
