@@ -92,9 +92,12 @@ Configuration file generated based on the app's default `DEFAULT_CONFIG`. Config
     "ngrokPorts": "3000,4000",
     "ngrokAutoStart": false,
     "httpsProxies": {
-      "example.local": {
-        "forwardPort": 8080,
-        "listenPort": 8443,
+      "my-proxy": {
+        "hostnames": ["localhost", "*.example.local"],
+        "portMappings": [
+          { "from": 8080, "to": 8443 },
+          { "from": 9090, "to": 9443 }
+        ],
         "autoStart": true
       }
     },
@@ -120,6 +123,16 @@ Configuration file generated based on the app's default `DEFAULT_CONFIG`. Config
 - **autoRestartOnError**: Auto-restart on abnormal exit (conditional)
 - **useAuthProxy**: Wrap execution with mcp-auth-proxy
 - **authProxyListenPort** / **authProxyExternalUrl**: Required fields when using Auth Proxy
+
+#### HTTPS Proxy Configuration Fields (`httpsProxies`)
+
+Each entry is keyed by a **proxy name** (an arbitrary identifier).
+
+- **hostnames**: Hostnames served by this proxy. Used as the certificate SAN and to decide which `http://` URLs are upgraded to HTTPS on redirects and in page content. Wildcards such as `*.example.local` are supported (added to the certificate as a wildcard SAN).
+- **portMappings**: One or more port mappings. Each `{ "from": <http port>, "to": <https port> }` starts an HTTPS listener on `to` that forwards to `http://127.0.0.1:<from>`.
+- **autoStart**: Start this proxy automatically on app launch.
+
+Settings created by older versions (a single `forwardPort`/`listenPort` keyed by hostname) are migrated to this format automatically on startup.
 
 ## Developer Reference
 

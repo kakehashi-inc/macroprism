@@ -83,7 +83,13 @@ export default {
     },
     httpsProxy: {
         title: 'HTTPS Proxy',
+        name: 'Proxy Name',
         host: 'Hostname',
+        hostnames: 'Hostnames',
+        hostnamesHint: 'Wildcards allowed (e.g. *.example.local)',
+        addHostname: 'Add hostname',
+        portMappings: 'Port Mappings',
+        addMapping: 'Add mapping',
         httpPort: 'Forward Port (http)',
         httpsPort: 'Listen Port (https)',
         add: 'Add Proxy',

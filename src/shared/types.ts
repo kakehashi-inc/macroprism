@@ -147,20 +147,31 @@ export interface SystemInfo {
 }
 
 // HTTPS Proxy Types
+
+// 1つのポート転送定義 (http:from -> https:to)
+export interface HttpsPortMapping {
+    from: number; // 転送先のHTTPポート (127.0.0.1:from)
+    to: number; // HTTPS待ち受けポート
+}
+
 export interface HttpsProxyConfig {
-    forwardPort: number; // HTTP target port on localhost
-    listenPort: number; // HTTPS listen port
+    // 証明書のSAN兼URL書き換えの一致判定に使うホスト名群。
+    // ワイルドカード (例: *.example.local) を含められる。
+    hostnames: string[];
+    // ポート転送定義 (複数可)。
+    portMappings: HttpsPortMapping[];
     autoStart?: boolean;
 }
 
+// キーはプロキシ名 (任意の識別子)。
 export interface HttpsProxies {
-    [hostname: string]: HttpsProxyConfig;
+    [name: string]: HttpsProxyConfig;
 }
 
 export interface HttpsProxyStatus {
-    hostname: string;
-    forwardPort: number;
-    listenPort: number;
+    name: string;
+    hostnames: string[];
+    portMappings: HttpsPortMapping[];
     running: boolean;
     certPath: string;
     keyPath: string;

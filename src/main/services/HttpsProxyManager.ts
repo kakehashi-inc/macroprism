@@ -2,16 +2,16 @@ import * as fs from 'fs/promises';
 import { readFileSync } from 'fs';
 import * as path from 'path';
 import * as https from 'https';
-import * as http from 'http';
 import { X509Certificate } from 'crypto';
 import { ConfigManager } from './ConfigManager';
 import { getCertsPath } from '../../shared/constants';
 import { HttpsProxies, HttpsProxyConfig, HttpsProxyStatus } from '../../shared/types';
+import { HttpsUrlRewriter } from './HttpsUrlRewriter';
 
 export class HttpsProxyManager {
     private configManager: ConfigManager;
-    private servers: Map<string, https.Server> = new Map();
-    private proxies: Map<string, any> = new Map();
+    // プロキシ名 -> 稼働中のHTTPSサーバー群 (portMappingごとに1つ)
+    private servers: Map<string, https.Server[]> = new Map();
     private logStreams: Map<string, any> = new Map();
 
     constructor(configManager: ConfigManager) {
@@ -31,16 +31,21 @@ export class HttpsProxyManager {
         }
     }
 
-    private getHostnameDir(hostname: string): string {
-        return path.join(getCertsPath(), hostname);
+    // 証明書はプロキシ名ごとのディレクトリに保存する。
+    private sanitizeName(name: string): string {
+        return name.replace(/[^A-Za-z0-9._-]/g, '_');
     }
 
-    private getKeyPath(hostname: string): string {
-        return path.join(this.getHostnameDir(hostname), 'key.pem');
+    private getProxyDir(name: string): string {
+        return path.join(getCertsPath(), this.sanitizeName(name));
     }
 
-    private getCertPath(hostname: string): string {
-        return path.join(this.getHostnameDir(hostname), 'cert.pem');
+    private getKeyPath(name: string): string {
+        return path.join(this.getProxyDir(name), 'key.pem');
+    }
+
+    private getCertPath(name: string): string {
+        return path.join(this.getProxyDir(name), 'cert.pem');
     }
 
     // Logs: use app log directory, single shared file per day
@@ -69,7 +74,7 @@ export class HttpsProxyManager {
         return stream;
     }
 
-    private async log(hostname: string, message: string): Promise<void> {
+    private async log(name: string, message: string): Promise<void> {
         try {
             const stream = await this.ensureLogStream();
             const now = new Date();
@@ -78,11 +83,11 @@ export class HttpsProxyManager {
             const ts = `${now.getFullYear()}/${pad(now.getMonth() + 1)}/${pad(now.getDate())} ${pad(
                 now.getHours()
             )}:${pad(now.getMinutes())}:${pad(now.getSeconds())}.${pad3(now.getMilliseconds())}`;
-            stream.write(`[${ts}] [${hostname}] ${message}\n`);
+            stream.write(`[${ts}] [${name}] ${message}\n`);
         } catch { /* ignore */ }
     }
 
-    async readLogs(_hostname: string, lines: number = 200): Promise<string[]> {
+    async readLogs(_name: string, lines: number = 200): Promise<string[]> {
         try {
             const file = this.getLogFilePath();
             const content = await fs.readFile(file, 'utf-8');
@@ -93,7 +98,7 @@ export class HttpsProxyManager {
         }
     }
 
-    async clearLogs(_hostname: string): Promise<void> {
+    async clearLogs(_name: string): Promise<void> {
         try {
             const file = this.getLogFilePath();
             await fs.writeFile(file, '', 'utf-8');
@@ -121,8 +126,25 @@ export class HttpsProxyManager {
         }
     }
 
-    private async ensureHostnameDir(hostname: string): Promise<void> {
-        const dir = this.getHostnameDir(hostname);
+    // 証明書に含まれるDNS SANの一覧(小文字)を返す。
+    private parseCertDnsNames(certPem: string | null): string[] {
+        if (!certPem) return [];
+        try {
+            const x = new X509Certificate(certPem);
+            const san = x.subjectAltName || '';
+            return san
+                .split(',')
+                .map(s => s.trim())
+                .filter(s => s.toUpperCase().startsWith('DNS:'))
+                .map(s => s.slice(4).trim().toLowerCase())
+                .filter(Boolean);
+        } catch {
+            return [];
+        }
+    }
+
+    private async ensureProxyDir(name: string): Promise<void> {
+        const dir = this.getProxyDir(name);
         try {
             await fs.access(dir);
         } catch {
@@ -131,43 +153,42 @@ export class HttpsProxyManager {
     }
 
     async regenerateCertificate(
-        hostname: string,
+        name: string,
+        hostnames: string[],
         days: number = 90
     ): Promise<{ certPath: string; keyPath: string; validTo?: string }> {
-        await this.ensureHostnameDir(hostname);
+        await this.ensureProxyDir(name);
         // Lazy-import selfsigned to avoid ESM/CJS pitfalls during load
         const mod = await import('selfsigned');
         const selfsigned: any = (mod as any).default ?? mod;
 
-        const attrs = [{ name: 'commonName', value: hostname }];
+        const names = (hostnames || []).map(h => h.trim()).filter(Boolean);
+        const commonName = names[0] || name;
+        // 全ホスト名をDNS SANに、ループバックIPも付与する。
+        const altNames: any[] = names.map(h => ({ type: 2, value: h })); // DNS
+        altNames.push({ type: 7, ip: '127.0.0.1' });
+        altNames.push({ type: 7, ip: '::1' });
+
+        const attrs = [{ name: 'commonName', value: commonName }];
         const pems = await selfsigned.generate(attrs, {
             days,
             keySize: 2048,
             algorithm: 'sha256',
-            extensions: [
-                {
-                    name: 'subjectAltName',
-                    altNames: [
-                        { type: 2, value: hostname }, // DNS
-                        { type: 7, ip: '127.0.0.1' },
-                        { type: 7, ip: '::1' },
-                    ],
-                },
-            ],
+            extensions: [{ name: 'subjectAltName', altNames }],
         });
 
-        const keyPath = this.getKeyPath(hostname);
-        const certPath = this.getCertPath(hostname);
+        const keyPath = this.getKeyPath(name);
+        const certPath = this.getCertPath(name);
         await fs.writeFile(keyPath, pems.private, 'utf-8');
         await fs.writeFile(certPath, pems.cert, 'utf-8');
 
         const validTo = this.parseValidTo(pems.cert);
 
         // If running, restart to apply new certs
-        if (this.servers.has(hostname)) {
+        if (this.servers.has(name)) {
             try {
-                await this.stop(hostname);
-                await this.start(hostname);
+                await this.stop(name);
+                await this.start(name);
             } catch {
                 // ignore restart failure
             }
@@ -177,11 +198,12 @@ export class HttpsProxyManager {
     }
 
     private async ensureCertificate(
-        hostname: string
+        name: string,
+        hostnames: string[]
     ): Promise<{ certPath: string; keyPath: string; validTo?: string }> {
-        await this.ensureHostnameDir(hostname);
-        const keyPath = this.getKeyPath(hostname);
-        const certPath = this.getCertPath(hostname);
+        await this.ensureProxyDir(name);
+        const keyPath = this.getKeyPath(name);
+        const certPath = this.getCertPath(name);
 
         const certContent = await this.readFileIfExists(certPath);
         const keyContent = await this.readFileIfExists(keyPath);
@@ -190,8 +212,15 @@ export class HttpsProxyManager {
         const now = Date.now();
         const isExpired = validTo ? new Date(validTo).getTime() <= now : true;
 
-        if (!certContent || !keyContent || isExpired) {
-            return await this.regenerateCertificate(hostname, 90);
+        // 証明書のDNS SANが現在のホスト名集合と完全一致するか(追加・削除いずれも再生成)。
+        const certNames = new Set(this.parseCertDnsNames(certContent));
+        const wanted = (hostnames || []).map(h => h.trim().toLowerCase()).filter(Boolean);
+        const wantedSet = new Set(wanted);
+        const hostnamesMatch =
+            certNames.size === wantedSet.size && wanted.every(h => certNames.has(h));
+
+        if (!certContent || !keyContent || isExpired || !hostnamesMatch) {
+            return await this.regenerateCertificate(name, hostnames, 90);
         }
 
         return { certPath, keyPath, validTo };
@@ -201,23 +230,28 @@ export class HttpsProxyManager {
         return this.configManager.getHttpsProxies();
     }
 
+    private isRunning(name: string): boolean {
+        const servers = this.servers.get(name);
+        if (!servers || servers.length === 0) return false;
+        return servers.some(s => (s.listening as any) === true);
+    }
+
     status(): HttpsProxyStatus[] {
         const proxies = this.list();
         const results: HttpsProxyStatus[] = [];
-        for (const [hostname, cfg] of Object.entries(proxies)) {
-            const certPath = this.getCertPath(hostname);
-            const keyPath = this.getKeyPath(hostname);
-            const server = this.servers.get(hostname);
+        for (const [name, cfg] of Object.entries(proxies)) {
+            const certPath = this.getCertPath(name);
+            const keyPath = this.getKeyPath(name);
             let validTo: string | undefined;
             try {
                 const certPem = readFileSync(certPath, 'utf-8');
                 validTo = this.parseValidTo(certPem);
             } catch { /* ignore */ }
             results.push({
-                hostname,
-                forwardPort: cfg.forwardPort,
-                listenPort: cfg.listenPort,
-                running: !!server && (server.listening as any) === true,
+                name,
+                hostnames: cfg.hostnames || [],
+                portMappings: cfg.portMappings || [],
+                running: this.isRunning(name),
                 certPath,
                 keyPath,
                 validTo,
@@ -226,16 +260,20 @@ export class HttpsProxyManager {
         return results;
     }
 
-    async start(hostname: string): Promise<HttpsProxyStatus> {
+    async start(name: string): Promise<HttpsProxyStatus> {
         // If already running, stop first
-        if (this.servers.has(hostname)) {
-            await this.stop(hostname);
+        if (this.servers.has(name)) {
+            await this.stop(name);
         }
 
-        const cfg = this.configManager.getHttpsProxy(hostname);
-        if (!cfg) throw new Error(`HTTPS proxy config for '${hostname}' not found`);
+        const cfg = this.configManager.getHttpsProxy(name);
+        if (!cfg) throw new Error(`HTTPS proxy config for '${name}' not found`);
 
-        const { certPath, keyPath, validTo } = await this.ensureCertificate(hostname);
+        const hostnames = cfg.hostnames || [];
+        const mappings = (cfg.portMappings || []).filter(m => m && m.from > 0 && m.to > 0);
+        if (mappings.length === 0) throw new Error(`HTTPS proxy '${name}' has no port mappings`);
+
+        const { certPath, keyPath, validTo } = await this.ensureCertificate(name, hostnames);
         const key = await fs.readFile(keyPath);
         const cert = await fs.readFile(certPath);
 
@@ -244,100 +282,96 @@ export class HttpsProxyManager {
         const express: any = (expressMod as any).default ?? (expressMod as any);
         const proxy = (await import('express-http-proxy')).default as any;
 
-        const app = express();
-        app.disable('x-powered-by');
-
-        await this.log(hostname, `Proxy starting: https :${cfg.listenPort} -> http 127.0.0.1:${cfg.forwardPort}`);
-
-        app.use(
-            proxy(`http://127.0.0.1:${cfg.forwardPort}`, {
-                preserveHostHdr: true,
-                parseReqBody: false,
-                memoizeHost: false,
-                // レスポンス本文の絶対URLを書き換え（HTMLまたはJSON、圧縮はスキップ）
-                userResDecorator: (proxyRes: any, proxyResData: Buffer, req: http.IncomingMessage) => {
-                    const ctypeRaw = proxyRes.headers['content-type'] || '';
-                    const ctype = String(ctypeRaw).toLowerCase();
-                    const isHtml = ctype.startsWith('text/html');
-                    const isJson = ctype.includes('json');
-                    if (!isHtml && !isJson) return proxyResData;
-                    const enc = String(proxyRes.headers['content-encoding'] || '').toLowerCase();
-                    if (enc && (enc.includes('gzip') || enc.includes('br') || enc.includes('deflate'))) {
-                        // 圧縮レスポンスは改変しない
-                        return proxyResData;
-                    }
-                    const authority = (req.headers as any)[':authority'];
-                    const hostHeader = String(authority || req.headers?.host || '').trim();
-                    if (!hostHeader) return proxyResData;
-
-                    // host と port を分離
-                    let hostOnly = hostHeader;
-                    const idxColon = hostHeader.lastIndexOf(':');
-                    if (idxColon > -1) {
-                        const candidate = hostHeader.slice(idxColon + 1);
-                        if (/^\d+$/.test(candidate)) {
-                            hostOnly = hostHeader.slice(0, idxColon);
-                        }
-                    }
-
-                    const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-                    // 常に: http://hostOnly:forwardPort → https へ
-                    const httpWithPort = new RegExp(
-                        `http://${escapeRegExp(hostOnly)}:${String(cfg.forwardPort)}\\b`,
-                        'g'
-                    );
-                    // http://hostOnly:listenPort → https へ（待ち受けを http で返す場合）
-                    const httpWithListenPort = new RegExp(
-                        `http://${escapeRegExp(hostOnly)}:${String(cfg.listenPort)}\\b`,
-                        'g'
-                    );
-
-                    // 出力ターゲット（443は省略）
-                    const httpsTarget =
-                        cfg.listenPort === 443
-                            ? `https://${hostOnly}`
-                            : `https://${hostOnly}:${String(cfg.listenPort)}`;
-
-                    let body = proxyResData.toString('utf8');
-                    body = body.replace(httpWithPort, httpsTarget);
-                    body = body.replace(httpWithListenPort, httpsTarget);
-
-                    // forwardPort が 80 または listenPort が 443 の場合、ポート省略形 http://hostOnly も置換
-                    if (cfg.forwardPort === 80 || cfg.listenPort === 443) {
-                        const httpNoPort = new RegExp(`http://${escapeRegExp(hostOnly)}\\b`, 'g');
-                        body = body.replace(httpNoPort, httpsTarget);
-                    }
-
-                    return Buffer.from(body, 'utf8');
-                },
-                proxyErrorHandler: async (_err: any, _res: any, next: any) => {
-                    await this.log(hostname, `Proxy error (upstream) occurred.`);
-                    try {
-                        next();
-                    } catch { /* ignore */ }
-                },
-            })
-        );
-
-        const server = https.createServer({ key, cert }, app);
-
-        // Note: express-http-proxy does not handle WS upgrades; add if needed later
-
-        await new Promise<void>((resolve, reject) => {
-            server.once('error', err => reject(err));
-            server.listen(cfg.listenPort, '0.0.0.0', () => resolve());
+        // URL書き換え(リダイレクト/本文)を担うリライタ。プロキシの全ホスト名/全ポートを対象にする。
+        const rewriter = new HttpsUrlRewriter({ hostnames, portMappings: mappings }, msg => {
+            void this.log(name, msg);
         });
 
-        await this.log(hostname, `Proxy started on :${cfg.listenPort}`);
+        const servers: https.Server[] = [];
+        try {
+            for (const mapping of mappings) {
+                const app = express();
+                app.disable('x-powered-by');
 
-        this.servers.set(hostname, server);
-        this.proxies.set(hostname, app);
+                await this.log(
+                    name,
+                    `Proxy starting: https :${mapping.to} -> http 127.0.0.1:${mapping.from}`
+                );
+
+                app.use(
+                    proxy(`http://127.0.0.1:${mapping.from}`, {
+                        preserveHostHdr: true,
+                        parseReqBody: false,
+                        memoizeHost: false,
+                        // リダイレクト(Locationヘッダ)の絶対URLを同一ルールで書き換え
+                        userResHeaderDecorator: (headers: Record<string, any>) => {
+                            const key2 =
+                                'location' in headers
+                                    ? 'location'
+                                    : 'Location' in headers
+                                      ? 'Location'
+                                      : null;
+                            const loc = key2 ? headers[key2] : undefined;
+                            if (key2 && typeof loc === 'string' && loc) {
+                                try {
+                                    const rewritten = rewriter.rewriteLocation(loc);
+                                    if (rewritten) {
+                                        headers[key2] = rewritten;
+                                        void this.log(name, `Redirect rewritten: ${loc} -> ${rewritten}`);
+                                    }
+                                } catch { /* ignore */ }
+                            }
+                            return headers;
+                        },
+                        // レスポンス本文の絶対URLを書き換え（HTMLまたはJSON、br/deflate圧縮はスキップ）
+                        userResDecorator: (proxyRes: any, proxyResData: Buffer) => {
+                            const ctypeRaw = proxyRes.headers['content-type'] || '';
+                            const ctype = String(ctypeRaw).toLowerCase();
+                            const isHtml = ctype.startsWith('text/html');
+                            const isJson = ctype.includes('json');
+                            if (!isHtml && !isJson) return proxyResData;
+                            // gzip は express-http-proxy が自動で展開/再圧縮するため処理可能。br/deflate は非対応。
+                            const enc = String(proxyRes.headers['content-encoding'] || '').toLowerCase();
+                            if (enc.includes('br') || enc.includes('deflate')) {
+                                return proxyResData;
+                            }
+                            const body = proxyResData.toString('utf8');
+                            const out = rewriter.rewriteBody(body);
+                            return Buffer.from(out, 'utf8');
+                        },
+                        proxyErrorHandler: async (_err: any, _res: any, next: any) => {
+                            await this.log(name, `Proxy error (upstream) occurred.`);
+                            try {
+                                next();
+                            } catch { /* ignore */ }
+                        },
+                    })
+                );
+
+                const server = https.createServer({ key, cert }, app);
+                await new Promise<void>((resolve, reject) => {
+                    server.once('error', err => reject(err));
+                    server.listen(mapping.to, '0.0.0.0', () => resolve());
+                });
+                await this.log(name, `Proxy started on :${mapping.to}`);
+                servers.push(server);
+            }
+        } catch (err) {
+            // いずれかの待ち受けに失敗したら、起動済みのものを閉じてから投げ直す。
+            for (const s of servers) {
+                try {
+                    s.close();
+                } catch { /* ignore */ }
+            }
+            throw err;
+        }
+
+        this.servers.set(name, servers);
 
         return {
-            hostname,
-            forwardPort: cfg.forwardPort,
-            listenPort: cfg.listenPort,
+            name,
+            hostnames,
+            portMappings: mappings,
             running: true,
             certPath,
             keyPath,
@@ -345,50 +379,45 @@ export class HttpsProxyManager {
         };
     }
 
-    async stop(hostname: string): Promise<boolean> {
-        const server = this.servers.get(hostname);
-        const proxy = this.proxies.get(hostname);
-        if (!server) return true;
-        await new Promise<void>(resolve => {
-            try {
-                server.close(() => resolve());
-            } catch {
-                resolve();
-            }
-        });
-        this.servers.delete(hostname);
-        if (proxy && typeof (proxy as any).close === 'function') {
-            try {
-                (proxy as any).close();
-            } catch { /* ignore */ }
+    async stop(name: string): Promise<boolean> {
+        const servers = this.servers.get(name);
+        if (!servers) return true;
+        for (const server of servers) {
+            await new Promise<void>(resolve => {
+                try {
+                    server.close(() => resolve());
+                } catch {
+                    resolve();
+                }
+            });
         }
-        this.proxies.delete(hostname);
-        await this.log(hostname, `Proxy stopped`);
+        this.servers.delete(name);
+        await this.log(name, `Proxy stopped`);
         return true;
     }
 
     async stopAll(): Promise<void> {
-        const hosts = Array.from(this.servers.keys());
-        for (const h of hosts) {
-            await this.stop(h);
+        const names = Array.from(this.servers.keys());
+        for (const n of names) {
+            await this.stop(n);
         }
     }
 
-    async create(hostname: string, config: HttpsProxyConfig): Promise<void> {
-        await this.configManager.addHttpsProxy(hostname, config);
+    async create(name: string, config: HttpsProxyConfig): Promise<void> {
+        await this.configManager.addHttpsProxy(name, config);
     }
 
-    async update(hostname: string, config: Partial<HttpsProxyConfig>): Promise<void> {
-        await this.configManager.updateHttpsProxy(hostname, config);
-        // If running and port changed, restart
-        if (this.servers.has(hostname)) {
-            await this.stop(hostname);
-            await this.start(hostname);
+    async update(name: string, config: Partial<HttpsProxyConfig>): Promise<void> {
+        await this.configManager.updateHttpsProxy(name, config);
+        // If running and settings changed, restart
+        if (this.servers.has(name)) {
+            await this.stop(name);
+            await this.start(name);
         }
     }
 
-    async delete(hostname: string): Promise<void> {
-        await this.stop(hostname);
-        await this.configManager.deleteHttpsProxy(hostname);
+    async delete(name: string): Promise<void> {
+        await this.stop(name);
+        await this.configManager.deleteHttpsProxy(name);
     }
 }

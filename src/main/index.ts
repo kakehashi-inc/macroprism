@@ -255,10 +255,10 @@ async function initializeServices() {
     // Auto-start HTTPS proxies with autoStart=true
     try {
         const proxies = configManager.getHttpsProxies();
-        for (const [hostname, cfg] of Object.entries(proxies)) {
+        for (const [name, cfg] of Object.entries(proxies)) {
             if (cfg?.autoStart) {
                 try {
-                    await httpsProxyManager.start(hostname);
+                    await httpsProxyManager.start(name);
                 } catch (e) {
                     // ignore startup failures; user can manage from UI
                 }

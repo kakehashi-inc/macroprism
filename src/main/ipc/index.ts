@@ -151,9 +151,10 @@ export function initializeIPC(
         if (!httpsProxyManager) return true;
         return await httpsProxyManager.stop(hostname);
     });
-    ipcMain.handle(IPC_CHANNELS.HTTPS_PROXY_REGENERATE_CERT, async (_e, hostname: string) => {
+    ipcMain.handle(IPC_CHANNELS.HTTPS_PROXY_REGENERATE_CERT, async (_e, name: string) => {
         if (!httpsProxyManager) return null;
-        return await httpsProxyManager.regenerateCertificate(hostname, 90);
+        const cfg = configManager.getHttpsProxy(name);
+        return await httpsProxyManager.regenerateCertificate(name, cfg?.hostnames || [], 90);
     });
     ipcMain.handle(IPC_CHANNELS.HTTPS_PROXY_LOG_READ, async (_e, hostname: string, lines?: number) => {
         if (!httpsProxyManager) return [];

@@ -83,7 +83,13 @@ export default {
     },
     httpsProxy: {
         title: 'HTTPS プロキシ管理',
+        name: 'プロキシ名',
         host: 'ホスト名',
+        hostnames: 'ホスト名',
+        hostnamesHint: 'ワイルドカード可 (例: *.example.local)',
+        addHostname: 'ホスト名を追加',
+        portMappings: 'ポート転送',
+        addMapping: '転送を追加',
         httpPort: '転送先ポート(http)',
         httpsPort: '待ち受けポート(https)',
         add: 'プロキシを追加',

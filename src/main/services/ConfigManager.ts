@@ -42,13 +42,17 @@ export class ConfigManager {
             // The legacy layout stored process definitions under "mcpServers"
             const legacyProcesses = loadedConfig.mcpServers;
             const hasLegacyProcesses = !loadedConfig.processes && legacyProcesses;
+            // HTTPSプロキシ設定を新レイアウト(プロキシ名/複数ホスト名/複数ポート転送)へ移行
+            const { proxies: migratedProxies, changed: httpsChanged } = migrateHttpsProxies(
+                loadedConfig.httpsProxies
+            );
             // Merge with defaults to ensure all fields exist
             this.config = {
                 processes: loadedConfig.processes || legacyProcesses || {},
                 settings: { ...DEFAULT_CONFIG.settings, ...(loadedConfig.settings || {}) },
-                httpsProxies: loadedConfig.httpsProxies || {},
+                httpsProxies: migratedProxies,
             } as AppConfig;
-            if (hasLegacyProcesses) {
+            if (hasLegacyProcesses || httpsChanged) {
                 // Persist immediately so the file switches to the new layout
                 await this.saveConfig();
             }
@@ -140,44 +144,79 @@ export class ConfigManager {
         return this.config.settings.logDirectory;
     }
 
-    // HTTPS Proxy methods
+    // HTTPS Proxy methods (key = proxy name)
     getHttpsProxies(): HttpsProxies {
         const proxies = (this.config as any).httpsProxies || {};
         return { ...proxies };
     }
 
-    getHttpsProxy(hostname: string): HttpsProxyConfig | null {
+    getHttpsProxy(name: string): HttpsProxyConfig | null {
         const proxies = (this.config as any).httpsProxies || {};
-        return proxies[hostname] || null;
+        return proxies[name] || null;
     }
 
-    async addHttpsProxy(hostname: string, proxy: HttpsProxyConfig): Promise<void> {
+    async addHttpsProxy(name: string, proxy: HttpsProxyConfig): Promise<void> {
         const proxies: HttpsProxies = (this.config as any).httpsProxies || {};
-        if (proxies[hostname]) {
-            throw new Error(`HTTPS proxy for hostname '${hostname}' already exists`);
+        if (proxies[name]) {
+            throw new Error(`HTTPS proxy '${name}' already exists`);
         }
-        (this.config as any).httpsProxies = { ...proxies, [hostname]: proxy };
+        (this.config as any).httpsProxies = { ...proxies, [name]: proxy };
         await this.saveConfig();
     }
 
-    async updateHttpsProxy(hostname: string, proxy: Partial<HttpsProxyConfig>): Promise<void> {
+    async updateHttpsProxy(name: string, proxy: Partial<HttpsProxyConfig>): Promise<void> {
         const proxies: HttpsProxies = (this.config as any).httpsProxies || {};
-        if (!proxies[hostname]) {
-            throw new Error(`HTTPS proxy for hostname '${hostname}' not found`);
+        if (!proxies[name]) {
+            throw new Error(`HTTPS proxy '${name}' not found`);
         }
         (this.config as any).httpsProxies = {
             ...proxies,
-            [hostname]: { ...proxies[hostname], ...proxy },
+            [name]: { ...proxies[name], ...proxy },
         };
         await this.saveConfig();
     }
 
-    async deleteHttpsProxy(hostname: string): Promise<void> {
+    async deleteHttpsProxy(name: string): Promise<void> {
         const proxies: HttpsProxies = (this.config as any).httpsProxies || {};
-        if (proxies[hostname]) {
-            const { [hostname]: _removed, ...rest } = proxies;
+        if (proxies[name]) {
+            const { [name]: _removed, ...rest } = proxies;
             (this.config as any).httpsProxies = rest;
             await this.saveConfig();
         }
     }
+}
+
+/**
+ * 旧レイアウトのHTTPSプロキシ設定を新レイアウトへ移行する。
+ * 旧: { [hostname]: { forwardPort, listenPort, autoStart } }
+ * 新: { [name]:     { hostnames:[hostname], portMappings:[{from,to}], autoStart } }
+ * キー(旧hostname)はそのままプロキシ名として引き継ぐ。既に新形式のものは変更しない。
+ * 戻り値の changed が true の場合、呼び出し側で保存する。
+ */
+export function migrateHttpsProxies(raw: any): { proxies: HttpsProxies; changed: boolean } {
+    const src = raw || {};
+    const out: HttpsProxies = {};
+    let changed = false;
+    for (const [key, value] of Object.entries<any>(src)) {
+        if (value && Array.isArray(value.portMappings)) {
+            // 既に新形式
+            out[key] = {
+                hostnames: Array.isArray(value.hostnames) ? value.hostnames : [],
+                portMappings: value.portMappings,
+                autoStart: !!value.autoStart,
+            };
+            continue;
+        }
+        // 旧形式 -> 新形式
+        const from = Number(value?.forwardPort);
+        const to = Number(value?.listenPort);
+        out[key] = {
+            hostnames: [key],
+            portMappings:
+                Number.isFinite(from) && Number.isFinite(to) ? [{ from, to }] : [],
+            autoStart: !!value?.autoStart,
+        };
+        changed = true;
+    }
+    return { proxies: out, changed };
 }

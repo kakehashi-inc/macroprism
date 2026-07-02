@@ -22,6 +22,7 @@ import {
     Tooltip,
     Chip,
     ToggleButton,
+    Divider,
 } from '@mui/material';
 import {
     Add as AddIcon,
@@ -34,6 +35,11 @@ import {
     Clear as ClearIcon,
 } from '@mui/icons-material';
 import useStore from '../store/useStore';
+
+interface MappingInput {
+    from: string;
+    to: string;
+}
 
 const HttpsProxyPage: React.FC = () => {
     const { t } = useTranslation();
@@ -51,10 +57,10 @@ const HttpsProxyPage: React.FC = () => {
     } = useStore();
 
     const [open, setOpen] = useState(false);
-    const [editingHost, setEditingHost] = useState<string | null>(null);
-    const [hostname, setHostname] = useState('');
-    const [forwardPort, setForwardPort] = useState('');
-    const [listenPort, setListenPort] = useState('');
+    const [editingName, setEditingName] = useState<string | null>(null);
+    const [name, setName] = useState('');
+    const [hostnames, setHostnames] = useState<string[]>(['']);
+    const [mappings, setMappings] = useState<MappingInput[]>([{ from: '', to: '' }]);
     const [autoStart, setAutoStart] = useState(false);
 
     // Logs
@@ -63,15 +69,15 @@ const HttpsProxyPage: React.FC = () => {
     const [autoRefresh, setAutoRefresh] = useState<boolean>(true);
     const logContainerRef = useRef<HTMLDivElement | null>(null);
 
-    const selectedHostname = useMemo(
-        () => editingHost || Object.keys(httpsProxies || {})[0] || '',
-        [editingHost, httpsProxies]
+    const selectedName = useMemo(
+        () => editingName || Object.keys(httpsProxies || {})[0] || '',
+        [editingName, httpsProxies]
     );
 
     const refreshLogs = async () => {
         try {
-            if (!selectedHostname) return;
-            const arr = await window.electronAPI.httpsProxyAPI.readLogs(selectedHostname, logLines);
+            if (!selectedName) return;
+            const arr = await window.electronAPI.httpsProxyAPI.readLogs(selectedName, logLines);
             setLogs(Array.isArray(arr) ? arr : []);
         } catch {
             setLogs([]);
@@ -92,7 +98,7 @@ const HttpsProxyPage: React.FC = () => {
         }
         return () => tId && clearInterval(tId);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedHostname, logLines, autoRefresh]);
+    }, [selectedName, logLines, autoRefresh]);
 
     useEffect(() => {
         const el = logContainerRef.current;
@@ -103,13 +109,13 @@ const HttpsProxyPage: React.FC = () => {
         const list = httpsProxies || {};
         return Object.keys(list)
             .sort()
-            .map(h => {
-                const cfg = list[h];
-                const st = (httpsProxyStatuses || []).find(s => s.hostname === h);
+            .map(n => {
+                const cfg = list[n] || {};
+                const st = (httpsProxyStatuses || []).find(s => s.name === n);
                 return {
-                    hostname: h,
-                    forwardPort: cfg.forwardPort,
-                    listenPort: cfg.listenPort,
+                    name: n,
+                    hostnames: Array.isArray(cfg.hostnames) ? cfg.hostnames : [],
+                    portMappings: Array.isArray(cfg.portMappings) ? cfg.portMappings : [],
                     autoStart: !!cfg.autoStart,
                     running: !!st?.running,
                 };
@@ -125,10 +131,10 @@ const HttpsProxyPage: React.FC = () => {
     );
 
     const resetDialog = () => {
-        setEditingHost(null);
-        setHostname('');
-        setForwardPort('');
-        setListenPort('');
+        setEditingName(null);
+        setName('');
+        setHostnames(['']);
+        setMappings([{ from: '', to: '' }]);
         setAutoStart(false);
     };
 
@@ -138,28 +144,57 @@ const HttpsProxyPage: React.FC = () => {
     };
 
     const openEdit = (row: any) => {
-        setEditingHost(row.hostname);
-        setHostname(row.hostname);
-        setForwardPort(String(row.forwardPort ?? ''));
-        setListenPort(String(row.listenPort ?? ''));
+        setEditingName(row.name);
+        setName(row.name);
+        setHostnames(row.hostnames.length ? [...row.hostnames] : ['']);
+        setMappings(
+            row.portMappings.length
+                ? row.portMappings.map((m: any) => ({ from: String(m.from ?? ''), to: String(m.to ?? '') }))
+                : [{ from: '', to: '' }]
+        );
         setAutoStart(!!row.autoStart);
         setOpen(true);
     };
 
+    // Hostname list editing
+    const setHostnameAt = (i: number, v: string) =>
+        setHostnames(prev => prev.map((h, idx) => (idx === i ? v : h)));
+    const addHostname = () => setHostnames(prev => [...prev, '']);
+    const removeHostname = (i: number) =>
+        setHostnames(prev => (prev.length <= 1 ? [''] : prev.filter((_, idx) => idx !== i)));
+
+    // Mapping list editing
+    const setMappingAt = (i: number, key: keyof MappingInput, v: string) =>
+        setMappings(prev => prev.map((m, idx) => (idx === i ? { ...m, [key]: v } : m)));
+    const addMapping = () => setMappings(prev => [...prev, { from: '', to: '' }]);
+    const removeMapping = (i: number) =>
+        setMappings(prev => (prev.length <= 1 ? [{ from: '', to: '' }] : prev.filter((_, idx) => idx !== i)));
+
+    const cleanHostnames = useMemo(() => hostnames.map(h => h.trim()).filter(Boolean), [hostnames]);
+    const cleanMappings = useMemo(
+        () =>
+            mappings
+                .map(m => ({ from: parseInt(m.from, 10), to: parseInt(m.to, 10) }))
+                .filter(m => Number.isFinite(m.from) && m.from > 0 && Number.isFinite(m.to) && m.to > 0),
+        [mappings]
+    );
+
+    const canSave = useMemo(
+        () => Boolean(name.trim()) && cleanHostnames.length > 0 && cleanMappings.length > 0,
+        [name, cleanHostnames, cleanMappings]
+    );
+
     const handleSave = async () => {
-        const fwd = parseInt(forwardPort, 10);
-        const lst = parseInt(listenPort, 10);
-        if (!hostname.trim()) return;
-        if (!Number.isFinite(fwd) || fwd <= 0) return;
-        if (!Number.isFinite(lst) || lst <= 0) return;
-        const cfg = { forwardPort: fwd, listenPort: lst, autoStart };
-        if (editingHost && editingHost !== hostname) {
-            await deleteHttpsProxy(editingHost);
-            await createHttpsProxy(hostname.trim(), cfg);
-        } else if (editingHost) {
-            await updateHttpsProxy(hostname.trim(), cfg);
+        if (!canSave) return;
+        const cfg = { hostnames: cleanHostnames, portMappings: cleanMappings, autoStart };
+        const newName = name.trim();
+        if (editingName && editingName !== newName) {
+            await deleteHttpsProxy(editingName);
+            await createHttpsProxy(newName, cfg);
+        } else if (editingName) {
+            await updateHttpsProxy(newName, cfg);
         } else {
-            await createHttpsProxy(hostname.trim(), cfg);
+            await createHttpsProxy(newName, cfg);
         }
         setOpen(false);
         resetDialog();
@@ -167,8 +202,8 @@ const HttpsProxyPage: React.FC = () => {
     };
 
     const statusForEditing = useMemo(
-        () => (editingHost ? (httpsProxyStatuses || []).find(s => s.hostname === editingHost) : undefined),
-        [httpsProxyStatuses, editingHost]
+        () => (editingName ? (httpsProxyStatuses || []).find(s => s.name === editingName) : undefined),
+        [httpsProxyStatuses, editingName]
     );
 
     const remainingDays = useMemo(() => {
@@ -180,12 +215,6 @@ const HttpsProxyPage: React.FC = () => {
         const diff = Math.ceil((end - now) / msPerDay);
         return diff < 0 ? 0 : diff;
     }, [statusForEditing]);
-
-    const canSave = useMemo(() => {
-        const fwd = parseInt(forwardPort, 10);
-        const lst = parseInt(listenPort, 10);
-        return Boolean(hostname.trim()) && Number.isFinite(fwd) && fwd > 0 && Number.isFinite(lst) && lst > 0;
-    }, [hostname, forwardPort, listenPort]);
 
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -200,9 +229,9 @@ const HttpsProxyPage: React.FC = () => {
                 <Table size='small'>
                     <TableHead>
                         <TableRow>
-                            <TableCell>{t('httpsProxy.host')}</TableCell>
-                            <TableCell align='right'>{t('httpsProxy.httpPort')}</TableCell>
-                            <TableCell align='right'>{t('httpsProxy.httpsPort')}</TableCell>
+                            <TableCell>{t('httpsProxy.name')}</TableCell>
+                            <TableCell>{t('httpsProxy.hostnames')}</TableCell>
+                            <TableCell>{t('httpsProxy.portMappings')}</TableCell>
                             <TableCell>{t('common.status')}</TableCell>
                             <TableCell align='center'>{t('common.autoStart')}</TableCell>
                             <TableCell align='center'>{t('common.actions')}</TableCell>
@@ -210,31 +239,41 @@ const HttpsProxyPage: React.FC = () => {
                     </TableHead>
                     <TableBody>
                         {rows.map(row => (
-                            <TableRow key={row.hostname} hover>
+                            <TableRow key={row.name} hover>
                                 <TableCell>
                                     <Typography
                                         variant='body1'
                                         noWrap
-                                        sx={{
-                                            maxWidth: '40ch',
-                                            display: 'block',
-                                            whiteSpace: 'nowrap',
-                                            textOverflow: 'ellipsis',
-                                            overflow: 'hidden',
-                                        }}
-                                        title={row.hostname}
+                                        sx={{ maxWidth: '24ch', textOverflow: 'ellipsis', overflow: 'hidden' }}
+                                        title={row.name}
                                     >
-                                        {row.hostname}
+                                        {row.name}
                                     </Typography>
                                 </TableCell>
-                                <TableCell align='right'>{row.forwardPort}</TableCell>
-                                <TableCell align='right'>{row.listenPort}</TableCell>
+                                <TableCell>
+                                    <Stack direction='row' spacing={0.5} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+                                        {row.hostnames.map((h: string) => (
+                                            <Chip key={h} label={h} size='small' variant='outlined' />
+                                        ))}
+                                    </Stack>
+                                </TableCell>
+                                <TableCell>
+                                    <Stack direction='row' spacing={0.5} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+                                        {row.portMappings.map((m: any, idx: number) => (
+                                            <Chip
+                                                key={`${m.from}-${m.to}-${idx}`}
+                                                label={`${m.from} → ${m.to}`}
+                                                size='small'
+                                            />
+                                        ))}
+                                    </Stack>
+                                </TableCell>
                                 <TableCell>{getStatusChip(row.running)}</TableCell>
                                 <TableCell align='center'>
                                     <Switch
                                         checked={row.autoStart}
                                         onChange={async e => {
-                                            await updateHttpsProxy(row.hostname, { autoStart: e.target.checked });
+                                            await updateHttpsProxy(row.name, { autoStart: e.target.checked });
                                             showToast(t('common.success'));
                                         }}
                                     />
@@ -242,13 +281,13 @@ const HttpsProxyPage: React.FC = () => {
                                 <TableCell align='center'>
                                     {row.running ? (
                                         <Tooltip title={t('common.stop')}>
-                                            <IconButton size='small' onClick={() => stopHttpsProxy(row.hostname)}>
+                                            <IconButton size='small' onClick={() => stopHttpsProxy(row.name)}>
                                                 <StopIcon />
                                             </IconButton>
                                         </Tooltip>
                                     ) : (
                                         <Tooltip title={t('common.start')}>
-                                            <IconButton size='small' onClick={() => startHttpsProxy(row.hostname)}>
+                                            <IconButton size='small' onClick={() => startHttpsProxy(row.name)}>
                                                 <StartIcon />
                                             </IconButton>
                                         </Tooltip>
@@ -265,7 +304,7 @@ const HttpsProxyPage: React.FC = () => {
                                         </span>
                                     </Tooltip>
                                     <Tooltip title={t('common.delete')}>
-                                        <IconButton size='small' onClick={() => deleteHttpsProxy(row.hostname)}>
+                                        <IconButton size='small' onClick={() => deleteHttpsProxy(row.name)}>
                                             <Delete />
                                         </IconButton>
                                     </Tooltip>
@@ -316,8 +355,8 @@ const HttpsProxyPage: React.FC = () => {
                     <IconButton
                         color='error'
                         onClick={async () => {
-                            if (!selectedHostname) return;
-                            await window.electronAPI.httpsProxyAPI.clearLogs(selectedHostname);
+                            if (!selectedName) return;
+                            await window.electronAPI.httpsProxyAPI.clearLogs(selectedName);
                             await refreshLogs();
                         }}
                         title={t('common.clear')}
@@ -343,37 +382,92 @@ const HttpsProxyPage: React.FC = () => {
                 </Box>
             </Paper>
 
-            <Dialog open={open} onClose={() => setOpen(false)} maxWidth='xs' fullWidth>
-                <DialogTitle>{editingHost ? t('common.edit') : t('httpsProxy.add')}</DialogTitle>
+            <Dialog open={open} onClose={() => setOpen(false)} maxWidth='sm' fullWidth>
+                <DialogTitle>{editingName ? t('common.edit') : t('httpsProxy.add')}</DialogTitle>
                 <DialogContent>
                     <Stack spacing={2} sx={{ mt: 1 }}>
                         <TextField
-                            label={t('httpsProxy.host')}
-                            value={hostname}
-                            onChange={e => setHostname(e.target.value)}
-                            placeholder='example.local'
-                            fullWidth
-                        />
-                        <TextField
-                            label={t('httpsProxy.httpPort')}
-                            type='number'
-                            value={forwardPort}
-                            onChange={e => setForwardPort(e.target.value)}
+                            label={t('httpsProxy.name')}
+                            value={name}
+                            onChange={e => setName(e.target.value)}
+                            placeholder='my-proxy'
                             fullWidth
                             required
                         />
-                        <TextField
-                            label={t('httpsProxy.httpsPort')}
-                            type='number'
-                            value={listenPort}
-                            onChange={e => setListenPort(e.target.value)}
-                            fullWidth
-                            required
-                        />
+
+                        {/* Hostnames */}
+                        <Box>
+                            <Stack direction='row' sx={{ alignItems: 'center', mb: 0.5 }}>
+                                <Typography variant='subtitle2'>{t('httpsProxy.hostnames')}</Typography>
+                                <Box sx={{ flexGrow: 1 }} />
+                                <Button size='small' startIcon={<AddIcon />} onClick={addHostname}>
+                                    {t('httpsProxy.addHostname')}
+                                </Button>
+                            </Stack>
+                            <Stack spacing={1}>
+                                {hostnames.map((h, i) => (
+                                    <Stack key={i} direction='row' spacing={1} sx={{ alignItems: 'center' }}>
+                                        <TextField
+                                            size='small'
+                                            value={h}
+                                            onChange={e => setHostnameAt(i, e.target.value)}
+                                            placeholder='localhost / *.example.local'
+                                            fullWidth
+                                        />
+                                        <IconButton size='small' onClick={() => removeHostname(i)}>
+                                            <Delete fontSize='small' />
+                                        </IconButton>
+                                    </Stack>
+                                ))}
+                            </Stack>
+                            <Typography variant='caption' color='text.secondary'>
+                                {t('httpsProxy.hostnamesHint')}
+                            </Typography>
+                        </Box>
+
+                        <Divider />
+
+                        {/* Port mappings */}
+                        <Box>
+                            <Stack direction='row' sx={{ alignItems: 'center', mb: 0.5 }}>
+                                <Typography variant='subtitle2'>{t('httpsProxy.portMappings')}</Typography>
+                                <Box sx={{ flexGrow: 1 }} />
+                                <Button size='small' startIcon={<AddIcon />} onClick={addMapping}>
+                                    {t('httpsProxy.addMapping')}
+                                </Button>
+                            </Stack>
+                            <Stack spacing={1}>
+                                {mappings.map((m, i) => (
+                                    <Stack key={i} direction='row' spacing={1} sx={{ alignItems: 'center' }}>
+                                        <TextField
+                                            size='small'
+                                            type='number'
+                                            label={t('httpsProxy.httpPort')}
+                                            value={m.from}
+                                            onChange={e => setMappingAt(i, 'from', e.target.value)}
+                                            fullWidth
+                                        />
+                                        <TextField
+                                            size='small'
+                                            type='number'
+                                            label={t('httpsProxy.httpsPort')}
+                                            value={m.to}
+                                            onChange={e => setMappingAt(i, 'to', e.target.value)}
+                                            fullWidth
+                                        />
+                                        <IconButton size='small' onClick={() => removeMapping(i)}>
+                                            <Delete fontSize='small' />
+                                        </IconButton>
+                                    </Stack>
+                                ))}
+                            </Stack>
+                        </Box>
+
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             <Switch checked={autoStart} onChange={e => setAutoStart(e.target.checked)} />
                             <Typography>{t('common.autoStart')}</Typography>
                         </Box>
+
                         {statusForEditing ? (
                             <Box>
                                 <Typography variant='caption' color='text.secondary'>
@@ -398,13 +492,14 @@ const HttpsProxyPage: React.FC = () => {
                                 ) : null}
                             </Box>
                         ) : null}
-                        {editingHost ? (
+
+                        {editingName ? (
                             <Box sx={{ display: 'flex', justifyContent: 'flex-start' }}>
                                 <Button
                                     variant='outlined'
                                     startIcon={<RefreshIcon />}
                                     onClick={async () => {
-                                        await regenerateHttpsCert(editingHost);
+                                        await regenerateHttpsCert(editingName);
                                         showToast(t('common.success'));
                                     }}
                                 >

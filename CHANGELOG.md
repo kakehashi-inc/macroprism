@@ -7,8 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [v0.4.0] - 2026-07-02
+
+### Added
+
+- Each HTTPS proxy is now set up under a name and can serve several hostnames and forward several ports at once. A single proxy can cover multiple services together — for example different ports on `localhost` — and respond to more than one hostname.
+- HTTPS proxy hostnames can use wildcards (for example `*.example.local`), letting you prepare a certificate that covers any subdomain in advance. The certificate is kept in sync with the proxy's hostnames automatically — when you add or remove a hostname, it is regenerated to match on the next start.
+- A service behind an HTTPS proxy now stays on HTTPS when it **redirects** the browser to its own `http://` address — previously only `http://` links inside the page content were upgraded, so redirects could drop the browser back to HTTP. Redirects and in-page links are now handled the same way, and only for the hostnames and ports you configured (addresses for other hosts or ports are left unchanged).
+
 ### Changed
 
+- Existing HTTPS proxy settings are upgraded automatically on first launch, so all of the above is available without any manual reconfiguration.
 - Renamed the application from "MCP Server Manager" to "MacroPrism", reflecting that it has grown into a general-purpose tool to run, connect, publish, and monitor local processes. UI labels now say "Process" instead of "MCP Server", and process definitions in the configuration file are stored under the `processes` key instead of `mcpServers` (existing configuration files are migrated automatically on first startup; downgrading to an older version afterwards is not supported). Data locations and the executable name are unchanged.
 
 ## [v0.3.1] - 2026-06-05
