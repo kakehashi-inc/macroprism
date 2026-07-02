@@ -3,8 +3,8 @@ import * as path from 'path';
 import {
     AppConfig,
     AppSettings,
-    MCPServerConfig,
-    MCPServers,
+    ProcessConfig,
+    Processes,
     HttpsProxies,
     HttpsProxyConfig,
 } from '../../shared/types';
@@ -39,12 +39,19 @@ export class ConfigManager {
         try {
             const data = await fs.readFile(this.configPath, 'utf-8');
             const loadedConfig = JSON.parse(data);
+            // The legacy layout stored process definitions under "mcpServers"
+            const legacyProcesses = loadedConfig.mcpServers;
+            const hasLegacyProcesses = !loadedConfig.processes && legacyProcesses;
             // Merge with defaults to ensure all fields exist
             this.config = {
-                mcpServers: loadedConfig.mcpServers || {},
+                processes: loadedConfig.processes || legacyProcesses || {},
                 settings: { ...DEFAULT_CONFIG.settings, ...(loadedConfig.settings || {}) },
                 httpsProxies: loadedConfig.httpsProxies || {},
             } as AppConfig;
+            if (hasLegacyProcesses) {
+                // Persist immediately so the file switches to the new layout
+                await this.saveConfig();
+            }
         } catch (error) {
             // If file doesn't exist or is invalid, use defaults
             this.config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
@@ -82,49 +89,49 @@ export class ConfigManager {
         return this.getSettings();
     }
 
-    // MCP Server methods
-    getMCPServers(): MCPServers {
-        return { ...this.config.mcpServers };
+    // Process methods
+    getProcesses(): Processes {
+        return { ...this.config.processes };
     }
 
-    getMCPServer(id: string): MCPServerConfig | null {
-        return this.config.mcpServers[id] || null;
+    getProcess(id: string): ProcessConfig | null {
+        return this.config.processes[id] || null;
     }
 
-    async addMCPServer(id: string, server: MCPServerConfig): Promise<void> {
-        if (this.config.mcpServers[id]) {
-            throw new Error(`Server with id '${id}' already exists`);
+    async addProcess(id: string, processConfig: ProcessConfig): Promise<void> {
+        if (this.config.processes[id]) {
+            throw new Error(`Process with id '${id}' already exists`);
         }
-        this.config.mcpServers[id] = server;
+        this.config.processes[id] = processConfig;
         await this.saveConfig();
     }
 
-    async updateMCPServer(id: string, server: Partial<MCPServerConfig>): Promise<void> {
-        if (!this.config.mcpServers[id]) {
-            throw new Error(`Server with id '${id}' not found`);
+    async updateProcess(id: string, processConfig: Partial<ProcessConfig>): Promise<void> {
+        if (!this.config.processes[id]) {
+            throw new Error(`Process with id '${id}' not found`);
         }
-        this.config.mcpServers[id] = {
-            ...this.config.mcpServers[id],
-            ...server,
+        this.config.processes[id] = {
+            ...this.config.processes[id],
+            ...processConfig,
         };
         await this.saveConfig();
     }
 
-    async deleteMCPServer(id: string): Promise<void> {
-        delete this.config.mcpServers[id];
+    async deleteProcess(id: string): Promise<void> {
+        delete this.config.processes[id];
         await this.saveConfig();
     }
 
-    async renameMCPServer(oldId: string, newId: string): Promise<void> {
-        if (!this.config.mcpServers[oldId]) {
-            throw new Error(`Server with id '${oldId}' not found`);
+    async renameProcess(oldId: string, newId: string): Promise<void> {
+        if (!this.config.processes[oldId]) {
+            throw new Error(`Process with id '${oldId}' not found`);
         }
-        if (this.config.mcpServers[newId]) {
-            throw new Error(`Server with id '${newId}' already exists`);
+        if (this.config.processes[newId]) {
+            throw new Error(`Process with id '${newId}' already exists`);
         }
 
-        this.config.mcpServers[newId] = this.config.mcpServers[oldId];
-        delete this.config.mcpServers[oldId];
+        this.config.processes[newId] = this.config.processes[oldId];
+        delete this.config.processes[oldId];
         await this.saveConfig();
     }
 

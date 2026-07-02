@@ -1,16 +1,20 @@
-# MCP Server Manager
+# MacroPrism
 
-Electron-based GUI application to start/stop, monitor, log, and expose (via ngrok) MCP servers.
+MacroPrism — automate, connect, publish, and monitor your local dev stack.
+
+Electron-based GUI application to start/stop, monitor, log, and expose (via ngrok) arbitrary local processes.
+
+Its core is generic process management. The optional `mcp-auth-proxy` integration is an auxiliary feature that adds OIDC authentication to a managed process, which also makes MacroPrism convenient for use cases such as running MCP servers.
 
 ## Features
 
-- **Process Management**: Register arbitrary MCP server commands, start/stop, status monitoring, error handling
+- **Process Management**: Register arbitrary commands as managed processes, start/stop, status monitoring, error handling
 - **Auto Start / Auto Restart**: Start on app launch, conditional auto-restart on abnormal exit
 - **WSL Support (Windows)**: Run inside WSL with selectable distribution (`platform: "wsl"`)
 - **Log Management**: Per-process daily log files for `stdout`/`stderr`, auto-clean by retention days, periodic rotation
 - **ngrok Integration**: Open multiple ports at once, show/copy URLs, view/clear ngrok logs
 - **HTTPS Proxy Management**: Terminate TLS locally and forward to local HTTP, per-day logs, self-signed cert auto-(re)generation
-- **Auth Proxy (Optional)**: Wrap with `mcp-auth-proxy` to add OIDC authentication
+- **Auth Proxy (Optional)**: Attach `mcp-auth-proxy` to a process to add OIDC authentication
 - **i18n/Theme**: Japanese/English, light/dark modes
 
 ## Supported OS
@@ -23,7 +27,7 @@ Note: This project is not code-signed on Windows. If SmartScreen displays a warn
 
 ## Data Files Location
 
-All data is stored under the `~/.mcpm` directory:
+All data is stored under the `~/.mcpm` directory (`mcpm` is an internal identifier taken from the consonants of **M**a**c**ro **P**ris**m**):
 
 - **Config File**: `~/.mcpm/config.json`
 - **Log Files**: `~/.mcpm/logs/`
@@ -35,7 +39,7 @@ All data is stored under the `~/.mcpm` directory:
 
 ```text
 ~/.mcpm/
-├── config.json      # Settings and MCP server definitions
+├── config.json      # Settings and process definitions
 ├── certs/           # Self-signed certificates per hostname for HTTPS proxy
 │   └── <hostname>/
 │       ├── cert.pem
@@ -49,27 +53,27 @@ All data is stored under the `~/.mcpm` directory:
 
 ### config.json Format
 
-Configuration file generated based on the app's default `DEFAULT_CONFIG`:
+Configuration file generated based on the app's default `DEFAULT_CONFIG`. Configuration files created by older versions are migrated to the new layout automatically on startup:
 
 ```json
 {
-  "mcpServers": {
-    "sequential-thinking": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
+  "processes": {
+    "web-app": {
+      "command": "node",
+      "args": ["server.js"],
       "env": {
         "NODE_ENV": "production"
       },
-      "displayName": "Sequential Thinking Server",
+      "displayName": "Web App",
       "platform": "host",
       "autoStart": true,
       "autoRestartOnError": true,
       "useAuthProxy": false
     },
-    "file-server": {
+    "batch-worker": {
       "command": "python",
-      "args": ["mcp_server.py"],
-      "displayName": "File Server",
+      "args": ["worker.py"],
+      "displayName": "Batch Worker",
       "platform": "wsl",
       "wslDistribution": "Ubuntu",
       "autoStart": false
@@ -84,7 +88,7 @@ Configuration file generated based on the app's default `DEFAULT_CONFIG`:
     "successfulStartThresholdMs": 10000,
     "showWindowOnStartup": true,
     "ngrokAuthToken": "",
-    "ngrokMetadataName": "MCP Server Manager",
+    "ngrokMetadataName": "MacroPrism",
     "ngrokPorts": "3000,4000",
     "ngrokAutoStart": false,
     "httpsProxies": {
@@ -104,7 +108,7 @@ Configuration file generated based on the app's default `DEFAULT_CONFIG`:
 }
 ```
 
-#### MCP Server Configuration Fields
+#### Process Configuration Fields (`processes`)
 
 - **command**: Executable command
 - **args**: Argument array

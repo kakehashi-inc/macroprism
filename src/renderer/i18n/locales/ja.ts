@@ -1,6 +1,6 @@
 export default {
     app: {
-        title: 'MCP Server Manager',
+        title: 'MacroPrism',
     },
     process: {
         title: 'プロセス管理',
@@ -24,14 +24,14 @@ export default {
             wsl: 'WSL',
         },
         dialog: {
-            addTitle: '新規MCPサーバー',
-            editTitle: 'MCPサーバーを編集',
+            addTitle: '新規プロセス',
+            editTitle: 'プロセスを編集',
             deleteTitle: '削除の確認',
-            deleteMessage: 'このMCPサーバーを削除してもよろしいですか？',
+            deleteMessage: 'このプロセスを削除してもよろしいですか？',
             argsTip: '引数を改行で区切って入力',
             envTip: '環境変数を「変数名:値」の形式で改行区切りで入力',
             displayNameTip: '表示名（任意）を入力',
-            idExists: 'この名前のサーバーは既に存在します',
+            idExists: 'この名前のプロセスは既に存在します',
             authProxyNote: '補足: stdio のみ対応',
             authProxyDisabled: 'OIDC設定が揃うまで有効化できません',
             authProxyMissingFields: 'mcp-auth-proxy利用時は「待ち受けポート」と「外部URL」が必須です',
@@ -121,7 +121,7 @@ export default {
     tray: {
         open: '開く',
         quit: '終了',
-        tooltip: 'MCP Server Manager',
+        tooltip: 'MacroPrism',
     },
     updater: {
         confirm: '新しいバージョン v{{version}} が利用可能です。アップデートしますか？',

@@ -163,7 +163,7 @@ export function initializeIPC(
         if (!httpsProxyManager) return;
         try {
             await httpsProxyManager.clearLogs(hostname);
-        } catch {}
+        } catch { /* ignore */ }
     });
 
     // Updater

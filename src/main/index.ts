@@ -9,6 +9,7 @@ import { NgrokMultiTunnelManager } from './services/NgrokMultiTunnelManager';
 import { HttpsProxyManager } from './services/HttpsProxyManager';
 import { updaterService } from './services/UpdaterService';
 import { SystemUtils } from './utils/SystemUtils';
+import { APP_NAME } from '../shared/constants';
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -111,7 +112,7 @@ function createTray() {
             click: () => app.quit(),
         },
     ]);
-    tray.setToolTip('MCP Server Manager');
+    tray.setToolTip(APP_NAME);
     tray.setContextMenu(menu);
     tray.on('right-click', () => {
         tray?.popUpContextMenu();
@@ -153,7 +154,7 @@ function createWindow() {
         // Ensure DevTools are visible in development
         try {
             mainWindow.webContents.openDevTools({ mode: 'detach' });
-        } catch {}
+        } catch { /* ignore */ }
         // Keyboard shortcuts to toggle DevTools without menu
         mainWindow.webContents.on('before-input-event', (event, input) => {
             const isToggleCombo =
@@ -300,7 +301,7 @@ app.on('before-quit', async e => {
         logManager.stopRotation();
         try {
             tray?.destroy();
-        } catch {}
+        } catch { /* ignore */ }
         if (updaterService.isInstalling()) {
             // An update install is pending: let the native updater quit and relaunch with the new
             // version. A hard app.exit(0) here would kill the process before Squirrel.Mac finishes
@@ -313,4 +314,4 @@ app.on('before-quit', async e => {
 });
 
 // Handle protocol for deep linking (optional)
-app.setAsDefaultProtocolClient('mcp-manager');
+app.setAsDefaultProtocolClient('macroprism');

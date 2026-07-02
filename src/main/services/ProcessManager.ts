@@ -1,7 +1,7 @@
 import { spawn, ChildProcess } from 'child_process';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { MCPServerConfig, ProcessStatus } from '../../shared/types';
+import { ProcessConfig, ProcessStatus } from '../../shared/types';
 import { PROCESS_CHECK_INTERVAL, getAppDataPath } from '../../shared/constants';
 import { LogManager } from './LogManager';
 import { ConfigManager } from './ConfigManager';
@@ -32,9 +32,9 @@ export class ProcessManager {
     }
 
     private async initializeStatuses(): Promise<void> {
-        const servers = this.configManager.getMCPServers();
+        const processes = this.configManager.getProcesses();
 
-        for (const id of Object.keys(servers)) {
+        for (const id of Object.keys(processes)) {
             this.processStatuses.set(id, {
                 id,
                 status: 'stopped',
@@ -44,22 +44,22 @@ export class ProcessManager {
     }
 
     private async autoStartProcesses(): Promise<void> {
-        const servers = this.configManager.getMCPServers();
+        const processes = this.configManager.getProcesses();
 
-        for (const [id, config] of Object.entries(servers)) {
+        for (const [id, config] of Object.entries(processes)) {
             if (config.autoStart) {
                 await this.startProcess(id);
             }
         }
     }
 
-    async getAllProcesses(): Promise<Array<{ id: string; config: MCPServerConfig }>> {
-        const servers = this.configManager.getMCPServers();
-        return Object.entries(servers).map(([id, config]) => ({ id, config }));
+    async getAllProcesses(): Promise<Array<{ id: string; config: ProcessConfig }>> {
+        const processes = this.configManager.getProcesses();
+        return Object.entries(processes).map(([id, config]) => ({ id, config }));
     }
 
-    async createProcess(id: string, config: MCPServerConfig): Promise<void> {
-        await this.configManager.addMCPServer(id, config);
+    async createProcess(id: string, config: ProcessConfig): Promise<void> {
+        await this.configManager.addProcess(id, config);
         this.processStatuses.set(id, {
             id,
             status: 'stopped',
@@ -67,8 +67,8 @@ export class ProcessManager {
         });
     }
 
-    async updateProcess(id: string, config: Partial<MCPServerConfig>): Promise<void> {
-        await this.configManager.updateMCPServer(id, config);
+    async updateProcess(id: string, config: Partial<ProcessConfig>): Promise<void> {
+        await this.configManager.updateProcess(id, config);
     }
 
     async deleteProcess(id: string): Promise<boolean> {
@@ -76,7 +76,7 @@ export class ProcessManager {
         await this.stopProcess(id);
 
         // Remove from config
-        await this.configManager.deleteMCPServer(id);
+        await this.configManager.deleteProcess(id);
 
         // Remove status
         this.processStatuses.delete(id);
@@ -88,7 +88,7 @@ export class ProcessManager {
     }
 
     async startProcess(id: string): Promise<boolean> {
-        const config = this.configManager.getMCPServer(id);
+        const config = this.configManager.getProcess(id);
         if (!config) {
             return false;
         }
@@ -269,7 +269,7 @@ export class ProcessManager {
                         await this.logManager.writeLog(id, 'stderr', `Command (error): ${cmdline}`);
                         await this.logManager.writeLog(id, 'stderr', `Env: ${envStr}`);
                         commandLogged = true;
-                    } catch {}
+                    } catch { /* ignore */ }
                 }
 
                 await this.logManager.writeLog(id, 'stderr', text);
@@ -290,7 +290,7 @@ export class ProcessManager {
                         await this.logManager.writeLog(id, 'stderr', `Env: ${envStr}`);
                         commandLogged = true;
                     }
-                } catch {}
+                } catch { /* ignore */ }
                 await this.logManager.writeLog(
                     id,
                     'stderr',
@@ -317,7 +317,7 @@ export class ProcessManager {
                         await this.logManager.writeLog(id, 'stderr', `Command (exit ${code}): ${cmdline}`);
                         await this.logManager.writeLog(id, 'stderr', `Env: ${envStr}`);
                         commandLogged = true;
-                    } catch {}
+                    } catch { /* ignore */ }
                 }
                 this.runningProcesses.delete(id);
                 await this.logManager.closeLogStream(id);
@@ -355,7 +355,7 @@ export class ProcessManager {
                 await this.logManager.writeLog(id, 'stderr', `Command: ${cmdline}`);
                 await this.logManager.writeLog(id, 'stderr', `Env: ${envStr}`);
                 await this.logManager.writeLog(id, 'stderr', `Failed to start process: ${message}`);
-            } catch {}
+            } catch { /* ignore */ }
             this.updateProcessStatus(id, {
                 status: 'error',
             });
@@ -485,7 +485,7 @@ export class ProcessManager {
             return;
         }
 
-        const config = this.configManager.getMCPServer(id);
+        const config = this.configManager.getProcess(id);
         if (!config || !config.autoRestartOnError) {
             return;
         }

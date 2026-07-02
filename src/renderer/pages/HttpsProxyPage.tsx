@@ -307,7 +307,7 @@ const HttpsProxyPage: React.FC = () => {
                             try {
                                 navigator.clipboard.writeText(logs.join('\n'));
                                 showToast(t('common.copied'));
-                            } catch {}
+                            } catch { /* ignore */ }
                         }}
                         title={t('common.copy')}
                     >

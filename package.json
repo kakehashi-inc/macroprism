@@ -1,7 +1,7 @@
 {
-  "name": "mcp-server-manager",
+  "name": "macroprism",
   "version": "0.3.1",
-  "description": "MCP Server Process Manager GUI",
+  "description": "MacroPrism - GUI to manage local dev processes: process control, ngrok tunnels, HTTPS proxy, WSL support, optional OIDC auth.",
   "main": "dist/main/index.js",
   "engines": {
     "node": ">=22.0.0",
@@ -28,10 +28,12 @@
     "clean": "rimraf dist release node_modules/.cache"
   },
   "keywords": [
-    "mcp",
-    "server",
     "process",
-    "manager"
+    "automation",
+    "ngrok",
+    "proxy",
+    "monitor",
+    "electron"
   ],
   "author": "",
   "license": "MIT",

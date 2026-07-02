@@ -17,17 +17,17 @@ import {
     Alert,
 } from '@mui/material';
 import useStore from '../store/useStore';
-import { MCPServerConfig } from '../../shared/types';
+import { ProcessConfig } from '../../shared/types';
 
 interface ProcessDialogProps {
     open: boolean;
     onClose: () => void;
-    server: { id: string; config: MCPServerConfig } | null;
+    server: { id: string; config: ProcessConfig } | null;
 }
 
 const ProcessDialog: React.FC<ProcessDialogProps> = ({ open, onClose, server }) => {
     const { t } = useTranslation();
-    const { wslAvailable, wslDistributions, servers, addServer, updateServer } = useStore();
+    const { wslAvailable, wslDistributions, processes, addProcess, updateProcess } = useStore();
 
     const [formData, setFormData] = useState({
         id: '',
@@ -99,7 +99,7 @@ const ProcessDialog: React.FC<ProcessDialogProps> = ({ open, onClose, server }) 
             }
         });
 
-        const serverConfig: MCPServerConfig = {
+        const serverConfig: ProcessConfig = {
             command: formData.command,
             args,
             env: Object.keys(env).length > 0 ? env : undefined,
@@ -124,15 +124,15 @@ const ProcessDialog: React.FC<ProcessDialogProps> = ({ open, onClose, server }) 
             }
             if (server) {
                 // Update existing server
-                await updateServer(server.id, serverConfig);
+                await updateProcess(server.id, serverConfig);
             } else {
                 // Check if ID already exists
-                if (servers.some(s => s.id === formData.id)) {
+                if (processes.some(s => s.id === formData.id)) {
                     setError(t('process.dialog.idExists'));
                     return;
                 }
                 // Create new server
-                await addServer(formData.id, serverConfig);
+                await addProcess(formData.id, serverConfig);
             }
             onClose();
         } catch (err) {
@@ -158,7 +158,7 @@ const ProcessDialog: React.FC<ProcessDialogProps> = ({ open, onClose, server }) 
                         fullWidth
                         required
                         disabled={!!server}
-                        helperText={!server && 'Unique identifier for the MCP server (e.g., "sequential-thinking")'}
+                        helperText={!server && 'Unique identifier for the process (e.g., "web-app")'}
                     />
 
                     <TextField

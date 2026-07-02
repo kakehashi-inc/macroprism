@@ -185,7 +185,7 @@ class UpdaterService {
                 if (!w.isDestroyed()) {
                     w.webContents.send(IPC_CHANNELS.UPDATER_STATE_CHANGED, payload);
                 }
-            } catch {}
+            } catch { /* ignore */ }
         }
     }
 }

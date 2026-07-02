@@ -1,5 +1,5 @@
-// MCP Server Configuration Types
-export interface MCPServerConfig {
+// Process configuration types
+export interface ProcessConfig {
     command: string;
     args: string[];
     env?: Record<string, string>;
@@ -14,8 +14,8 @@ export interface MCPServerConfig {
     authProxyExternalUrl?: string; // required when useAuthProxy
 }
 
-export interface MCPServers {
-    [key: string]: MCPServerConfig;
+export interface Processes {
+    [key: string]: ProcessConfig;
 }
 
 export interface ProcessStatus {
@@ -60,7 +60,7 @@ export interface AppSettings {
 
 // Complete Config Structure
 export interface AppConfig {
-    mcpServers: MCPServers;
+    processes: Processes;
     settings: AppSettings;
     httpsProxies?: HttpsProxies;
 }

@@ -1,4 +1,5 @@
 import * as fs from 'fs/promises';
+import { readFileSync } from 'fs';
 import * as path from 'path';
 import * as https from 'https';
 import * as http from 'http';
@@ -61,7 +62,7 @@ export class HttpsProxyManager {
         if (!stream) {
             try {
                 await fs.mkdir(this.getLogDir(), { recursive: true });
-            } catch {}
+            } catch { /* ignore */ }
             stream = fsNode.createWriteStream(filePath, { flags: 'a' });
             this.logStreams.set(filePath, stream);
         }
@@ -78,7 +79,7 @@ export class HttpsProxyManager {
                 now.getHours()
             )}:${pad(now.getMinutes())}:${pad(now.getSeconds())}.${pad3(now.getMilliseconds())}`;
             stream.write(`[${ts}] [${hostname}] ${message}\n`);
-        } catch {}
+        } catch { /* ignore */ }
     }
 
     async readLogs(_hostname: string, lines: number = 200): Promise<string[]> {
@@ -96,7 +97,7 @@ export class HttpsProxyManager {
         try {
             const file = this.getLogFilePath();
             await fs.writeFile(file, '', 'utf-8');
-        } catch {}
+        } catch { /* ignore */ }
     }
 
     private async readFileIfExists(filePath: string): Promise<string | null> {
@@ -209,9 +210,9 @@ export class HttpsProxyManager {
             const server = this.servers.get(hostname);
             let validTo: string | undefined;
             try {
-                const certPem = require('fs').readFileSync(certPath, 'utf-8');
+                const certPem = readFileSync(certPath, 'utf-8');
                 validTo = this.parseValidTo(certPem);
-            } catch {}
+            } catch { /* ignore */ }
             results.push({
                 hostname,
                 forwardPort: cfg.forwardPort,
@@ -266,7 +267,7 @@ export class HttpsProxyManager {
                         return proxyResData;
                     }
                     const authority = (req.headers as any)[':authority'];
-                    let hostHeader = String(authority || req.headers?.host || '').trim();
+                    const hostHeader = String(authority || req.headers?.host || '').trim();
                     if (!hostHeader) return proxyResData;
 
                     // host と port を分離
@@ -314,7 +315,7 @@ export class HttpsProxyManager {
                     await this.log(hostname, `Proxy error (upstream) occurred.`);
                     try {
                         next();
-                    } catch {}
+                    } catch { /* ignore */ }
                 },
             })
         );
@@ -359,7 +360,7 @@ export class HttpsProxyManager {
         if (proxy && typeof (proxy as any).close === 'function') {
             try {
                 (proxy as any).close();
-            } catch {}
+            } catch { /* ignore */ }
         }
         this.proxies.delete(hostname);
         await this.log(hostname, `Proxy stopped`);

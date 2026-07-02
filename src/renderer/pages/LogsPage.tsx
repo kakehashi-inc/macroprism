@@ -15,7 +15,7 @@ const LogsPage: React.FC = () => {
     const showToast = useStore(s => s.showToast);
     const { processId } = useParams();
     const navigate = useNavigate();
-    const { servers } = useStore();
+    const { processes } = useStore();
 
     const [selectedProcessId, setSelectedProcessId] = useState<string>(processId || '');
     const [logType, setLogType] = useState<'stdout' | 'stderr'>('stdout');
@@ -81,11 +81,11 @@ const LogsPage: React.FC = () => {
         const logsText = logLines.join('\n');
         try {
             navigator.clipboard.writeText(logsText);
-        } catch {}
+        } catch { /* ignore */ }
         showToast(t('common.copied'));
     };
 
-    const selectedServer = servers.find(s => s.id === selectedProcessId);
+    const selectedServer = processes.find(s => s.id === selectedProcessId);
 
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Renamed the application from "MCP Server Manager" to "MacroPrism", reflecting that it has grown into a general-purpose tool to run, connect, publish, and monitor local processes. UI labels now say "Process" instead of "MCP Server", and process definitions in the configuration file are stored under the `processes` key instead of `mcpServers` (existing configuration files are migrated automatically on first startup; downgrading to an older version afterwards is not supported). Data locations and the executable name are unchanged.
+
 ## [v0.3.1] - 2026-06-05
 
 ### Fixed

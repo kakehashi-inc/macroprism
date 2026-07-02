@@ -28,17 +28,17 @@ import { useNavigate } from 'react-router-dom';
 import useStore from '../store/useStore';
 import ProcessDialog from '../components/ProcessDialog';
 import ConfirmDialog from '../components/ConfirmDialog';
-import { MCPServerConfig } from '../../shared/types';
+import { ProcessConfig } from '../../shared/types';
 
 interface ServerEdit {
     id: string;
-    config: MCPServerConfig;
+    config: ProcessConfig;
 }
 
 const ProcessesPage: React.FC = () => {
     const { t } = useTranslation();
     const navigate = useNavigate();
-    const { servers, processStatuses, loading, updateServer, removeServer } = useStore();
+    const { processes, processStatuses, loading, updateProcess, removeProcess } = useStore();
     const [dialogOpen, setDialogOpen] = useState(false);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [selectedServer, setSelectedServer] = useState<ServerEdit | null>(null);
@@ -49,7 +49,7 @@ const ProcessesPage: React.FC = () => {
         setDialogOpen(true);
     };
 
-    const handleEdit = (server: { id: string; config: MCPServerConfig }) => {
+    const handleEdit = (server: { id: string; config: ProcessConfig }) => {
         setSelectedServer(server);
         setDialogOpen(true);
     };
@@ -61,7 +61,7 @@ const ProcessesPage: React.FC = () => {
 
     const handleDeleteConfirm = async () => {
         if (serverToDelete) {
-            await removeServer(serverToDelete);
+            await removeProcess(serverToDelete);
             setDeleteDialogOpen(false);
             setServerToDelete(null);
         }
@@ -75,8 +75,8 @@ const ProcessesPage: React.FC = () => {
         await window.electronAPI.processAPI.stop(serverId);
     };
 
-    const handleAutoStartToggle = async (server: { id: string; config: MCPServerConfig }) => {
-        await updateServer(server.id, {
+    const handleAutoStartToggle = async (server: { id: string; config: ProcessConfig }) => {
+        await updateProcess(server.id, {
             ...server.config,
             autoStart: !server.config.autoStart,
         });
@@ -102,7 +102,7 @@ const ProcessesPage: React.FC = () => {
         return <Chip label={t(labelKey)} color={colorMap[status.status]} size='small' />;
     };
 
-    const getDisplayName = (server: { id: string; config: MCPServerConfig }) => {
+    const getDisplayName = (server: { id: string; config: ProcessConfig }) => {
         if (server.config.displayName) {
             return (
                 <Box>
@@ -190,7 +190,7 @@ const ProcessesPage: React.FC = () => {
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {servers.map(server => {
+                        {processes.map(server => {
                             const status = processStatuses.get(server.id);
                             const isRunning = status?.status === 'running';
 
@@ -269,11 +269,11 @@ const ProcessesPage: React.FC = () => {
                                 </TableRow>
                             );
                         })}
-                        {servers.length === 0 && (
+                        {processes.length === 0 && (
                             <TableRow>
                                 <TableCell colSpan={6} align='center'>
                                     <Typography variant='body2' color='text.secondary'>
-                                        No MCP servers configured
+                                        No processes configured
                                     </Typography>
                                 </TableCell>
                             </TableRow>

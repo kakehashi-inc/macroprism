@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import {
-    MCPServerConfig,
+    ProcessConfig,
     ProcessStatus,
     AppSettings,
     WSLDistribution,
@@ -8,9 +8,9 @@ import {
     HttpsProxyStatus,
 } from '../../shared/types';
 
-interface MCPServerWithId {
+interface ProcessWithId {
     id: string;
-    config: MCPServerConfig;
+    config: ProcessConfig;
 }
 
 interface AppState {
@@ -18,7 +18,7 @@ interface AppState {
     config: AppConfig | null;
 
     // Processes
-    servers: MCPServerWithId[];
+    processes: ProcessWithId[];
     processStatuses: Map<string, ProcessStatus>;
     selectedServerId: string | null;
 
@@ -37,10 +37,10 @@ interface AppState {
 
     // Actions
     setConfig: (config: AppConfig) => void;
-    setServers: (servers: MCPServerWithId[]) => void;
-    addServer: (id: string, config: MCPServerConfig) => void;
-    updateServer: (id: string, config: MCPServerConfig) => void;
-    removeServer: (id: string) => void;
+    setProcesses: (processes: ProcessWithId[]) => void;
+    addProcess: (id: string, config: ProcessConfig) => void;
+    updateProcess: (id: string, config: ProcessConfig) => void;
+    removeProcess: (id: string) => void;
     setProcessStatus: (id: string, status: ProcessStatus) => void;
     setSelectedServerId: (id: string | null) => void;
 
@@ -71,7 +71,7 @@ interface AppState {
 const useStore = create<AppState>((set, get) => ({
     // Initial state
     config: null,
-    servers: [],
+    processes: [],
     processStatuses: new Map(),
     selectedServerId: null,
     wslAvailable: false,
@@ -84,31 +84,31 @@ const useStore = create<AppState>((set, get) => ({
 
     // Config actions
     setConfig: config => {
-        const servers = Object.entries(config.mcpServers).map(([id, serverConfig]) => ({
+        const processes = Object.entries(config.processes).map(([id, serverConfig]) => ({
             id,
             config: serverConfig,
         }));
-        set({ config, servers });
+        set({ config, processes });
     },
 
     // Server actions
-    setServers: servers => set({ servers }),
+    setProcesses: processes => set({ processes }),
 
-    addServer: async (id, config) => {
+    addProcess: async (id, config) => {
         if (!window.electronAPI?.processAPI) return;
         await window.electronAPI.processAPI.create(id, config);
         const newConfig = await window.electronAPI.configAPI.get();
         get().setConfig(newConfig);
     },
 
-    updateServer: async (id, config) => {
+    updateProcess: async (id, config) => {
         if (!window.electronAPI?.processAPI) return;
         await window.electronAPI.processAPI.update(id, config);
         const newConfig = await window.electronAPI.configAPI.get();
         get().setConfig(newConfig);
     },
 
-    removeServer: async id => {
+    removeProcess: async id => {
         if (!window.electronAPI?.processAPI) return;
         await window.electronAPI.processAPI.delete(id);
         const newConfig = await window.electronAPI.configAPI.get();

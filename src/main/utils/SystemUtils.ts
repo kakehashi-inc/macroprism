@@ -280,7 +280,7 @@ export class SystemUtils {
         try {
             // Use a marker to reliably extract the PATH even if the shell profile outputs other text
             // We run an interactive login shell to ensure .zprofile and .zshrc are loaded
-            const marker = '___MCP_SERVER_MANAGER_PATH___';
+            const marker = '___MACROPRISM_PATH___';
             const command = `/bin/zsh -l -i -c 'echo "${marker}$PATH"'`;
 
             // We use exec directly to avoid our own spawnCommand wrapper which might interfere

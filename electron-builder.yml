@@ -1,5 +1,5 @@
-appId: com.mcpservermanager.app
-productName: MCP Server Manager
+appId: com.macroprism.app
+productName: MacroPrism
 directories:
   output: release
   buildResources: build
@@ -11,7 +11,7 @@ portable:
 publish:
   provider: github
   owner: kakehashi-inc
-  repo: mcp_server_manager
+  repo: macroprism
   releaseType: draft
 releaseInfo:
   releaseName: "v${version}"
@@ -49,7 +49,7 @@ win:
         - arm64
 
 nsis:
-  shortcutName: MCP Server Manager
+  shortcutName: MacroPrism
   buildUniversalInstaller: false
   oneClick: false
   perMachine: false
@@ -94,6 +94,6 @@ linux:
         - arm64
   desktop:
     entry:
-      Name: MCP Server Manager
-      Comment: "GUI to manage MCP servers: process control, ngrok tunnels, HTTPS proxy, WSL support, optional OIDC auth."
+      Name: MacroPrism
+      Comment: "GUI to manage local dev processes: process control, ngrok tunnels, HTTPS proxy, WSL support, optional OIDC auth."
       Categories: Development;

@@ -50,7 +50,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             try {
                 const v = await window.electronAPI.systemAPI.getAppVersion();
                 if (mounted) setAppVersion(v);
-            } catch {}
+            } catch { /* ignore */ }
         })();
         return () => {
             mounted = false;

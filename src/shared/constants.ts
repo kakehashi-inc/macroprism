@@ -4,7 +4,7 @@ import * as os from 'os';
 
 // Default Configuration
 export const DEFAULT_CONFIG: AppConfig = {
-    mcpServers: {},
+    processes: {},
     settings: {
         language: 'ja',
         darkMode: false,
@@ -14,7 +14,7 @@ export const DEFAULT_CONFIG: AppConfig = {
         successfulStartThresholdMs: 10000,
         showWindowOnStartup: true,
         ngrokAuthToken: '',
-        ngrokMetadataName: 'MCP Server Manager',
+        ngrokMetadataName: 'MacroPrism',
         ngrokPorts: '',
         ngrokAutoStart: false,
         // OIDC defaults for mcp-auth-proxy
@@ -28,7 +28,7 @@ export const DEFAULT_CONFIG: AppConfig = {
 };
 
 // App Constants
-export const APP_NAME = 'MCP Server Manager';
+export const APP_NAME = 'MacroPrism';
 export const APP_VERSION = '1.0.0';
 
 // Process Check Interval (ms)

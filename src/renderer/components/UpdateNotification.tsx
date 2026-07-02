@@ -33,7 +33,7 @@ const UpdateNotification: React.FC = () => {
         return () => {
             try {
                 unsubscribe?.();
-            } catch {}
+            } catch { /* ignore */ }
         };
     }, []);
 

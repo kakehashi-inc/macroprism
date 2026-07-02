@@ -211,7 +211,7 @@ const NgrokPage: React.FC = () => {
                         onClick={() => {
                             try {
                                 navigator.clipboard.writeText(logs.join('\n'));
-                            } catch {}
+                            } catch { /* ignore */ }
                             showToast(t('common.copied'));
                         }}
                         title={t('common.copy')}

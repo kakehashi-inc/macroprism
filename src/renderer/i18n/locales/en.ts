@@ -1,6 +1,6 @@
 export default {
     app: {
-        title: 'MCP Server Manager',
+        title: 'MacroPrism',
     },
     process: {
         title: 'Process Management',
@@ -24,14 +24,14 @@ export default {
             wsl: 'WSL',
         },
         dialog: {
-            addTitle: 'New MCP Server',
-            editTitle: 'Edit MCP Server',
+            addTitle: 'New Process',
+            editTitle: 'Edit Process',
             deleteTitle: 'Confirm Delete',
-            deleteMessage: 'Are you sure you want to delete this MCP server?',
+            deleteMessage: 'Are you sure you want to delete this process?',
             argsTip: 'Enter arguments separated by line breaks',
             envTip: 'Enter environment variables as "name:value" separated by line breaks',
             displayNameTip: 'Enter display name (optional)',
-            idExists: 'A server with this name already exists',
+            idExists: 'A process with this name already exists',
             authProxyNote: 'Note: Only stdio is supported',
             authProxyDisabled: 'Cannot enable until OIDC settings are set',
             authProxyMissingFields: 'When using mcp-auth-proxy, Listen Port and External URL are required',
@@ -121,7 +121,7 @@ export default {
     tray: {
         open: 'Open',
         quit: 'Quit',
-        tooltip: 'MCP Server Manager',
+        tooltip: 'MacroPrism',
     },
     updater: {
         confirm: 'A new version v{{version}} is available. Update now?',

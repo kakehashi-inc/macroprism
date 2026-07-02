@@ -99,7 +99,7 @@ export class NgrokMultiTunnelManager {
                         const v = urlObj.toString();
                         url = typeof v === 'string' ? v : String(v ?? '');
                     }
-                } catch {}
+                } catch { /* ignore */ }
 
                 const info: NgrokTunnelInfo = { port, url, name: `port-${port}` };
                 this.tunnelInfos.set(port, info);
@@ -148,7 +148,7 @@ export class NgrokMultiTunnelManager {
                                 else if (conn && typeof conn.url === 'function') url = conn.url();
                                 else if (conn && typeof conn.url === 'string') url = conn.url;
                                 else if (conn && typeof conn.toString === 'function') url = conn.toString();
-                            } catch {}
+                            } catch { /* ignore */ }
                             if (url) {
                                 await this.ngrokModule.disconnect(url);
                             }
