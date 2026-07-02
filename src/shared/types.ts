@@ -116,6 +116,7 @@ export const IPC_CHANNELS = {
     HTTPS_PROXY_STOP: 'https-proxy:stop',
     HTTPS_PROXY_STATUS: 'https-proxy:status',
     HTTPS_PROXY_REGENERATE_CERT: 'https-proxy:regenerate-cert',
+    HTTPS_PROXY_EXPORT_CA_CERT: 'https-proxy:export-ca-cert',
     HTTPS_PROXY_LOG_READ: 'https-proxy:log:read',
     HTTPS_PROXY_LOG_CLEAR: 'https-proxy:log:clear',
 
@@ -154,7 +155,17 @@ export interface HttpsPortMapping {
     to: number; // HTTPS待ち受けポート
 }
 
+// バインドアドレスの指定方式
+// - local:  ローカルのみ (127.0.0.1 / ::1)。既定値。
+// - all:    全アドレス (0.0.0.0 / ::)。
+// - custom: bindAddresses に列挙した任意のアドレス。
+export type HttpsProxyBindMode = 'local' | 'all' | 'custom';
+
 export interface HttpsProxyConfig {
+    // バインドアドレスの指定方式。
+    bindMode: HttpsProxyBindMode;
+    // custom 時に使うバインドアドレス群 (例: 127.0.0.1 / ::1 / 0.0.0.0)。個数制限なし。
+    bindAddresses: string[];
     // 証明書のSAN兼URL書き換えの一致判定に使うホスト名群。
     // ワイルドカード (例: *.example.local) を含められる。
     hostnames: string[];

@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [v0.4.1] - 2026-07-03
+
+### Added
+
+- HTTPS proxies now have a configurable **bind address** setting with three options: **Local only** (default — `127.0.0.1` and `::1`), **All addresses** (`0.0.0.0` and `::`, reachable from other machines), and **Custom** (any number of addresses, freely editable). The proxy list shows the selected option, or the addresses themselves for Custom. Existing proxies are switched to "Local only" automatically; if you were accessing a proxy from another machine, switch it to "All addresses". Because `localhost` is now served over IPv6 (`::1`) as well, browsers connect instantly instead of waiting for a failed IPv6 attempt on every connection — pages loaded through `https://localhost:...` feel noticeably faster.
+- HTTPS proxy certificates are now issued by a built-in **local CA** ("MacroPrism Local CA") instead of being individually self-signed. Download the CA certificate with the new button on the HTTPS proxy page and register it in your OS trust store once (on Windows, double-click the downloaded `.crt` file and install it under "Trusted Root Certification Authorities"). After that, browsers accept every proxy without warnings — including proxies added later and renewed certificates — and features that require a fully trusted HTTPS connection, such as Service Workers, work as well. Registering the CA is always your own action; MacroPrism never modifies the trust store. Existing proxy certificates are replaced with CA-signed ones automatically the next time each proxy starts.
+- Opening an HTTPS proxy port with a plain `http://` URL (for example `http://localhost:8443/`) now redirects the browser to the same address over `https://` instead of failing, without the request ever reaching the backend service.
+
+### Changed
+
+- Deleting an HTTPS proxy from the list now asks for confirmation instead of deleting immediately. The confirmation defaults to cancel.
+
+### Fixed
+
+- Plain-text responses from a service behind an HTTPS proxy now have their `http://` links upgraded to HTTPS, the same way HTML and JSON responses already do.
+- Content served through an HTTPS proxy could arrive corrupted (garbled pages or data) when the backend compressed it with certain formats such as zstd. Such responses are now delivered unchanged (note that `http://` links inside them are not upgraded).
+
 ## [v0.4.0] - 2026-07-02
 
 ### Added

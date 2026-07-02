@@ -20,7 +20,10 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({ open, title, message, onC
                 <DialogContentText>{message}</DialogContentText>
             </DialogContent>
             <DialogActions>
-                <Button onClick={onCancel}>{t('common.cancel')}</Button>
+                {/* 破壊的操作のため「いいえ」(キャンセル) を既定フォーカスにする */}
+                <Button onClick={onCancel} autoFocus>
+                    {t('common.cancel')}
+                </Button>
                 <Button onClick={onConfirm} color='error' variant='contained'>
                     {t('common.delete')}
                 </Button>

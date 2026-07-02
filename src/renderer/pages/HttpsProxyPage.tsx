@@ -22,6 +22,7 @@ import {
     Tooltip,
     Chip,
     ToggleButton,
+    ToggleButtonGroup,
     Divider,
 } from '@mui/material';
 import {
@@ -33,13 +34,20 @@ import {
     Edit as EditIcon,
     ContentCopy as ContentCopyIcon,
     Clear as ClearIcon,
+    FileDownload as FileDownloadIcon,
 } from '@mui/icons-material';
 import useStore from '../store/useStore';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 interface MappingInput {
     from: string;
     to: string;
 }
+
+type BindMode = 'local' | 'all' | 'custom';
+
+// カスタム選択時のリスト初期値 (「ローカルのみ」の実アドレスと同じ)
+const DEFAULT_BIND_ADDRESSES = ['127.0.0.1', '::1'];
 
 const HttpsProxyPage: React.FC = () => {
     const { t } = useTranslation();
@@ -58,7 +66,10 @@ const HttpsProxyPage: React.FC = () => {
 
     const [open, setOpen] = useState(false);
     const [editingName, setEditingName] = useState<string | null>(null);
+    const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
     const [name, setName] = useState('');
+    const [bindMode, setBindMode] = useState<BindMode>('local');
+    const [bindAddresses, setBindAddresses] = useState<string[]>([...DEFAULT_BIND_ADDRESSES]);
     const [hostnames, setHostnames] = useState<string[]>(['']);
     const [mappings, setMappings] = useState<MappingInput[]>([{ from: '', to: '' }]);
     const [autoStart, setAutoStart] = useState(false);
@@ -114,6 +125,8 @@ const HttpsProxyPage: React.FC = () => {
                 const st = (httpsProxyStatuses || []).find(s => s.name === n);
                 return {
                     name: n,
+                    bindMode: (cfg.bindMode as BindMode) || 'local',
+                    bindAddresses: Array.isArray(cfg.bindAddresses) ? cfg.bindAddresses : [],
                     hostnames: Array.isArray(cfg.hostnames) ? cfg.hostnames : [],
                     portMappings: Array.isArray(cfg.portMappings) ? cfg.portMappings : [],
                     autoStart: !!cfg.autoStart,
@@ -133,6 +146,8 @@ const HttpsProxyPage: React.FC = () => {
     const resetDialog = () => {
         setEditingName(null);
         setName('');
+        setBindMode('local');
+        setBindAddresses([...DEFAULT_BIND_ADDRESSES]);
         setHostnames(['']);
         setMappings([{ from: '', to: '' }]);
         setAutoStart(false);
@@ -146,6 +161,8 @@ const HttpsProxyPage: React.FC = () => {
     const openEdit = (row: any) => {
         setEditingName(row.name);
         setName(row.name);
+        setBindMode(row.bindMode);
+        setBindAddresses(row.bindAddresses.length ? [...row.bindAddresses] : [...DEFAULT_BIND_ADDRESSES]);
         setHostnames(row.hostnames.length ? [...row.hostnames] : ['']);
         setMappings(
             row.portMappings.length
@@ -163,6 +180,13 @@ const HttpsProxyPage: React.FC = () => {
     const removeHostname = (i: number) =>
         setHostnames(prev => (prev.length <= 1 ? [''] : prev.filter((_, idx) => idx !== i)));
 
+    // Bind address list editing
+    const setBindAddressAt = (i: number, v: string) =>
+        setBindAddresses(prev => prev.map((a, idx) => (idx === i ? v : a)));
+    const addBindAddress = () => setBindAddresses(prev => [...prev, '']);
+    const removeBindAddress = (i: number) =>
+        setBindAddresses(prev => (prev.length <= 1 ? [''] : prev.filter((_, idx) => idx !== i)));
+
     // Mapping list editing
     const setMappingAt = (i: number, key: keyof MappingInput, v: string) =>
         setMappings(prev => prev.map((m, idx) => (idx === i ? { ...m, [key]: v } : m)));
@@ -171,6 +195,10 @@ const HttpsProxyPage: React.FC = () => {
         setMappings(prev => (prev.length <= 1 ? [{ from: '', to: '' }] : prev.filter((_, idx) => idx !== i)));
 
     const cleanHostnames = useMemo(() => hostnames.map(h => h.trim()).filter(Boolean), [hostnames]);
+    const cleanBindAddresses = useMemo(
+        () => bindAddresses.map(a => a.trim()).filter(Boolean),
+        [bindAddresses]
+    );
     const cleanMappings = useMemo(
         () =>
             mappings
@@ -180,13 +208,23 @@ const HttpsProxyPage: React.FC = () => {
     );
 
     const canSave = useMemo(
-        () => Boolean(name.trim()) && cleanHostnames.length > 0 && cleanMappings.length > 0,
-        [name, cleanHostnames, cleanMappings]
+        () =>
+            Boolean(name.trim()) &&
+            (bindMode !== 'custom' || cleanBindAddresses.length > 0) &&
+            cleanHostnames.length > 0 &&
+            cleanMappings.length > 0,
+        [name, bindMode, cleanBindAddresses, cleanHostnames, cleanMappings]
     );
 
     const handleSave = async () => {
         if (!canSave) return;
-        const cfg = { hostnames: cleanHostnames, portMappings: cleanMappings, autoStart };
+        const cfg = {
+            bindMode,
+            bindAddresses: bindMode === 'custom' ? cleanBindAddresses : [],
+            hostnames: cleanHostnames,
+            portMappings: cleanMappings,
+            autoStart,
+        };
         const newName = name.trim();
         if (editingName && editingName !== newName) {
             await deleteHttpsProxy(editingName);
@@ -199,6 +237,15 @@ const HttpsProxyPage: React.FC = () => {
         setOpen(false);
         resetDialog();
         showToast(t('common.success'));
+    };
+
+    const handleExportCaCert = async () => {
+        const res = await window.electronAPI.httpsProxyAPI.exportCaCert();
+        if (res?.success) {
+            showToast(t('common.success'));
+        } else if (!res?.canceled) {
+            showToast(res?.error || t('common.error'));
+        }
     };
 
     const statusForEditing = useMemo(
@@ -220,9 +267,18 @@ const HttpsProxyPage: React.FC = () => {
         <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
                 <Typography variant='h1'>{t('httpsProxy.title')}</Typography>
-                <Button variant='contained' startIcon={<AddIcon />} onClick={openAdd}>
-                    {t('httpsProxy.add')}
-                </Button>
+                <Stack direction='row' spacing={1}>
+                    <Button
+                        variant='outlined'
+                        startIcon={<FileDownloadIcon />}
+                        onClick={handleExportCaCert}
+                    >
+                        {t('httpsProxy.downloadCaCert')}
+                    </Button>
+                    <Button variant='contained' startIcon={<AddIcon />} onClick={openAdd}>
+                        {t('httpsProxy.add')}
+                    </Button>
+                </Stack>
             </Box>
 
             <TableContainer component={Paper}>
@@ -231,6 +287,7 @@ const HttpsProxyPage: React.FC = () => {
                         <TableRow>
                             <TableCell>{t('httpsProxy.name')}</TableCell>
                             <TableCell>{t('httpsProxy.hostnames')}</TableCell>
+                            <TableCell>{t('httpsProxy.bindAddresses')}</TableCell>
                             <TableCell>{t('httpsProxy.portMappings')}</TableCell>
                             <TableCell>{t('common.status')}</TableCell>
                             <TableCell align='center'>{t('common.autoStart')}</TableCell>
@@ -256,6 +313,25 @@ const HttpsProxyPage: React.FC = () => {
                                             <Chip key={h} label={h} size='small' variant='outlined' />
                                         ))}
                                     </Stack>
+                                </TableCell>
+                                <TableCell>
+                                    {row.bindMode === 'custom' ? (
+                                        <Stack
+                                            direction='row'
+                                            spacing={0.5}
+                                            sx={{ flexWrap: 'wrap', gap: 0.5 }}
+                                        >
+                                            {row.bindAddresses.map((a: string) => (
+                                                <Chip key={a} label={a} size='small' variant='outlined' />
+                                            ))}
+                                        </Stack>
+                                    ) : (
+                                        <Typography variant='body2'>
+                                            {row.bindMode === 'all'
+                                                ? t('httpsProxy.bindAll')
+                                                : t('httpsProxy.bindLocal')}
+                                        </Typography>
+                                    )}
                                 </TableCell>
                                 <TableCell>
                                     <Stack direction='row' spacing={0.5} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
@@ -304,7 +380,7 @@ const HttpsProxyPage: React.FC = () => {
                                         </span>
                                     </Tooltip>
                                     <Tooltip title={t('common.delete')}>
-                                        <IconButton size='small' onClick={() => deleteHttpsProxy(row.name)}>
+                                        <IconButton size='small' onClick={() => setDeleteTarget(row.name)}>
                                             <Delete />
                                         </IconButton>
                                     </Tooltip>
@@ -397,13 +473,9 @@ const HttpsProxyPage: React.FC = () => {
 
                         {/* Hostnames */}
                         <Box>
-                            <Stack direction='row' sx={{ alignItems: 'center', mb: 0.5 }}>
-                                <Typography variant='subtitle2'>{t('httpsProxy.hostnames')}</Typography>
-                                <Box sx={{ flexGrow: 1 }} />
-                                <Button size='small' startIcon={<AddIcon />} onClick={addHostname}>
-                                    {t('httpsProxy.addHostname')}
-                                </Button>
-                            </Stack>
+                            <Typography variant='subtitle2' sx={{ mb: 0.5 }}>
+                                {t('httpsProxy.hostnames')}
+                            </Typography>
                             <Stack spacing={1}>
                                 {hostnames.map((h, i) => (
                                     <Stack key={i} direction='row' spacing={1} sx={{ alignItems: 'center' }}>
@@ -420,22 +492,96 @@ const HttpsProxyPage: React.FC = () => {
                                     </Stack>
                                 ))}
                             </Stack>
-                            <Typography variant='caption' color='text.secondary'>
+                            <Box sx={{ mt: 0.5 }}>
+                                <Button size='small' startIcon={<AddIcon />} onClick={addHostname}>
+                                    {t('httpsProxy.addHostname')}
+                                </Button>
+                            </Box>
+                            <Typography variant='caption' color='text.secondary' sx={{ display: 'block' }}>
                                 {t('httpsProxy.hostnamesHint')}
                             </Typography>
                         </Box>
 
                         <Divider />
 
+                        {/* Bind addresses */}
+                        <Box>
+                            <Typography variant='subtitle2' sx={{ mb: 0.5 }}>
+                                {t('httpsProxy.bindAddresses')}
+                            </Typography>
+                            <ToggleButtonGroup
+                                exclusive
+                                size='small'
+                                value={bindMode}
+                                onChange={(_e, v) => {
+                                    if (v) setBindMode(v as BindMode);
+                                }}
+                                sx={{ mb: 1 }}
+                            >
+                                <ToggleButton value='local'>{t('httpsProxy.bindLocal')}</ToggleButton>
+                                <ToggleButton value='all'>{t('httpsProxy.bindAll')}</ToggleButton>
+                                <ToggleButton value='custom'>{t('httpsProxy.bindCustom')}</ToggleButton>
+                            </ToggleButtonGroup>
+                            {bindMode === 'custom' ? (
+                                <>
+                                    <Stack spacing={1}>
+                                        {bindAddresses.map((a, i) => (
+                                            <Stack
+                                                key={i}
+                                                direction='row'
+                                                spacing={1}
+                                                sx={{ alignItems: 'center' }}
+                                            >
+                                                <TextField
+                                                    size='small'
+                                                    value={a}
+                                                    onChange={e => setBindAddressAt(i, e.target.value)}
+                                                    placeholder='127.0.0.1 / ::1 / 0.0.0.0'
+                                                    fullWidth
+                                                />
+                                                <IconButton size='small' onClick={() => removeBindAddress(i)}>
+                                                    <Delete fontSize='small' />
+                                                </IconButton>
+                                            </Stack>
+                                        ))}
+                                    </Stack>
+                                    <Box sx={{ mt: 0.5 }}>
+                                        <Button
+                                            size='small'
+                                            startIcon={<AddIcon />}
+                                            onClick={addBindAddress}
+                                        >
+                                            {t('httpsProxy.addBindAddress')}
+                                        </Button>
+                                    </Box>
+                                    <Typography
+                                        variant='caption'
+                                        color='text.secondary'
+                                        sx={{ display: 'block' }}
+                                    >
+                                        {t('httpsProxy.bindAddressesHint')}
+                                    </Typography>
+                                </>
+                            ) : (
+                                <Typography
+                                    variant='caption'
+                                    color='text.secondary'
+                                    sx={{ display: 'block' }}
+                                >
+                                    {bindMode === 'local'
+                                        ? t('httpsProxy.bindLocalHint')
+                                        : t('httpsProxy.bindAllHint')}
+                                </Typography>
+                            )}
+                        </Box>
+
+                        <Divider />
+
                         {/* Port mappings */}
                         <Box>
-                            <Stack direction='row' sx={{ alignItems: 'center', mb: 0.5 }}>
-                                <Typography variant='subtitle2'>{t('httpsProxy.portMappings')}</Typography>
-                                <Box sx={{ flexGrow: 1 }} />
-                                <Button size='small' startIcon={<AddIcon />} onClick={addMapping}>
-                                    {t('httpsProxy.addMapping')}
-                                </Button>
-                            </Stack>
+                            <Typography variant='subtitle2' sx={{ mb: 0.5 }}>
+                                {t('httpsProxy.portMappings')}
+                            </Typography>
                             <Stack spacing={1}>
                                 {mappings.map((m, i) => (
                                     <Stack key={i} direction='row' spacing={1} sx={{ alignItems: 'center' }}>
@@ -461,6 +607,11 @@ const HttpsProxyPage: React.FC = () => {
                                     </Stack>
                                 ))}
                             </Stack>
+                            <Box sx={{ mt: 0.5 }}>
+                                <Button size='small' startIcon={<AddIcon />} onClick={addMapping}>
+                                    {t('httpsProxy.addMapping')}
+                                </Button>
+                            </Box>
                         </Box>
 
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -516,6 +667,17 @@ const HttpsProxyPage: React.FC = () => {
                     </Button>
                 </DialogActions>
             </Dialog>
+
+            <ConfirmDialog
+                open={!!deleteTarget}
+                title={t('httpsProxy.deleteTitle')}
+                message={t('httpsProxy.deleteMessage', { name: deleteTarget ?? '' })}
+                onConfirm={async () => {
+                    if (deleteTarget) await deleteHttpsProxy(deleteTarget);
+                    setDeleteTarget(null);
+                }}
+                onCancel={() => setDeleteTarget(null)}
+            />
         </Box>
     );
 };

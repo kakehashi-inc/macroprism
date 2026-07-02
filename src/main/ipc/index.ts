@@ -1,4 +1,4 @@
-import { app, ipcMain } from 'electron';
+import { app, dialog, ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/types';
 import { ProcessManager } from '../services/ProcessManager';
 import { ConfigManager } from '../services/ConfigManager';
@@ -155,6 +155,23 @@ export function initializeIPC(
         if (!httpsProxyManager) return null;
         const cfg = configManager.getHttpsProxy(name);
         return await httpsProxyManager.regenerateCertificate(name, cfg?.hostnames || [], 90);
+    });
+    ipcMain.handle(IPC_CHANNELS.HTTPS_PROXY_EXPORT_CA_CERT, async () => {
+        if (!httpsProxyManager) return { success: false, error: 'not initialized' };
+        const result = await dialog.showSaveDialog({
+            defaultPath: 'macroprism-ca.crt',
+            filters: [
+                { name: 'Certificate', extensions: ['crt', 'pem', 'cer'] },
+                { name: 'All Files', extensions: ['*'] },
+            ],
+        });
+        if (result.canceled || !result.filePath) return { success: false, canceled: true };
+        try {
+            await httpsProxyManager.exportCaCertificate(result.filePath);
+            return { success: true, path: result.filePath };
+        } catch (err: any) {
+            return { success: false, error: err?.message || String(err) };
+        }
     });
     ipcMain.handle(IPC_CHANNELS.HTTPS_PROXY_LOG_READ, async (_e, hostname: string, lines?: number) => {
         if (!httpsProxyManager) return [];

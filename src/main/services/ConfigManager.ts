@@ -8,7 +8,11 @@ import {
     HttpsProxies,
     HttpsProxyConfig,
 } from '../../shared/types';
-import { DEFAULT_CONFIG, getConfigPath } from '../../shared/constants';
+import {
+    DEFAULT_CONFIG,
+    HTTPS_PROXY_LOCAL_BIND_ADDRESSES,
+    getConfigPath,
+} from '../../shared/constants';
 
 export class ConfigManager {
     private config: AppConfig;
@@ -189,8 +193,11 @@ export class ConfigManager {
 /**
  * 旧レイアウトのHTTPSプロキシ設定を新レイアウトへ移行する。
  * 旧: { [hostname]: { forwardPort, listenPort, autoStart } }
- * 新: { [name]:     { hostnames:[hostname], portMappings:[{from,to}], autoStart } }
+ * 新: { [name]:     { bindMode, bindAddresses:[...], hostnames:[hostname],
+ *                     portMappings:[{from,to}], autoStart } }
  * キー(旧hostname)はそのままプロキシ名として引き継ぐ。既に新形式のものは変更しない。
+ * bindMode が無い既存データは、bindAddresses が未設定またはローカル既定値と一致すれば
+ * 'local'、それ以外は 'custom' として引き継ぐ。
  * 戻り値の changed が true の場合、呼び出し側で保存する。
  */
 export function migrateHttpsProxies(raw: any): { proxies: HttpsProxies; changed: boolean } {
@@ -198,19 +205,36 @@ export function migrateHttpsProxies(raw: any): { proxies: HttpsProxies; changed:
     const out: HttpsProxies = {};
     let changed = false;
     for (const [key, value] of Object.entries<any>(src)) {
+        const hasBindMode =
+            value?.bindMode === 'local' || value?.bindMode === 'all' || value?.bindMode === 'custom';
+        const rawAddresses: string[] = Array.isArray(value?.bindAddresses)
+            ? value.bindAddresses
+            : [];
+        let bindMode = value?.bindMode;
+        if (!hasBindMode) {
+            const isLocalDefaults =
+                rawAddresses.length === HTTPS_PROXY_LOCAL_BIND_ADDRESSES.length &&
+                HTTPS_PROXY_LOCAL_BIND_ADDRESSES.every(a => rawAddresses.includes(a));
+            bindMode = rawAddresses.length === 0 || isLocalDefaults ? 'local' : 'custom';
+        }
         if (value && Array.isArray(value.portMappings)) {
-            // 既に新形式
+            // 既に新形式 (bindMode が無い場合のみ補って保存)
             out[key] = {
+                bindMode,
+                bindAddresses: rawAddresses,
                 hostnames: Array.isArray(value.hostnames) ? value.hostnames : [],
                 portMappings: value.portMappings,
                 autoStart: !!value.autoStart,
             };
+            if (!hasBindMode) changed = true;
             continue;
         }
         // 旧形式 -> 新形式
         const from = Number(value?.forwardPort);
         const to = Number(value?.listenPort);
         out[key] = {
+            bindMode,
+            bindAddresses: rawAddresses,
             hostnames: [key],
             portMappings:
                 Number.isFinite(from) && Number.isFinite(to) ? [{ from, to }] : [],

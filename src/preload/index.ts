@@ -37,6 +37,7 @@ const IPC_CHANNELS = {
     HTTPS_PROXY_STOP: 'https-proxy:stop',
     HTTPS_PROXY_STATUS: 'https-proxy:status',
     HTTPS_PROXY_REGENERATE_CERT: 'https-proxy:regenerate-cert',
+    HTTPS_PROXY_EXPORT_CA_CERT: 'https-proxy:export-ca-cert',
     HTTPS_PROXY_LOG_READ: 'https-proxy:log:read',
     HTTPS_PROXY_LOG_CLEAR: 'https-proxy:log:clear',
 
@@ -115,6 +116,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
         start: (hostname: string) => ipcRenderer.invoke(IPC_CHANNELS.HTTPS_PROXY_START, hostname),
         stop: (hostname: string) => ipcRenderer.invoke(IPC_CHANNELS.HTTPS_PROXY_STOP, hostname),
         regenerateCert: (hostname: string) => ipcRenderer.invoke(IPC_CHANNELS.HTTPS_PROXY_REGENERATE_CERT, hostname),
+        exportCaCert: () => ipcRenderer.invoke(IPC_CHANNELS.HTTPS_PROXY_EXPORT_CA_CERT),
         readLogs: (hostname: string, lines?: number) =>
             ipcRenderer.invoke(IPC_CHANNELS.HTTPS_PROXY_LOG_READ, hostname, lines),
         clearLogs: (hostname: string) => ipcRenderer.invoke(IPC_CHANNELS.HTTPS_PROXY_LOG_CLEAR, hostname),
@@ -193,6 +195,7 @@ declare global {
                 start: (hostname: string) => Promise<any>;
                 stop: (hostname: string) => Promise<boolean>;
                 regenerateCert: (hostname: string) => Promise<any>;
+                exportCaCert: () => Promise<any>;
                 readLogs: (hostname: string, lines?: number) => Promise<string[]>;
                 clearLogs: (hostname: string) => Promise<void>;
             };

@@ -27,6 +27,10 @@ export const DEFAULT_CONFIG: AppConfig = {
     },
 };
 
+// HTTPSプロキシのバインドアドレス: 「ローカルのみ」(既定) と「全アドレス」の実アドレス
+export const HTTPS_PROXY_LOCAL_BIND_ADDRESSES = ['127.0.0.1', '::1'];
+export const HTTPS_PROXY_ALL_BIND_ADDRESSES = ['0.0.0.0', '::'];
+
 // App Constants
 export const APP_NAME = 'MacroPrism';
 export const APP_VERSION = '1.0.0';

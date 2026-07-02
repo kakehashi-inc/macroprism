@@ -13,7 +13,7 @@ Its core is generic process management. The optional `mcp-auth-proxy` integratio
 - **WSL Support (Windows)**: Run inside WSL with selectable distribution (`platform: "wsl"`)
 - **Log Management**: Per-process daily log files for `stdout`/`stderr`, auto-clean by retention days, periodic rotation
 - **ngrok Integration**: Open multiple ports at once, show/copy URLs, view/clear ngrok logs
-- **HTTPS Proxy Management**: Terminate TLS locally and forward to local HTTP, per-day logs, self-signed cert auto-(re)generation
+- **HTTPS Proxy Management**: Terminate TLS locally and forward to local HTTP, per-day logs, certificates issued and auto-renewed by a built-in local CA (register the downloadable CA certificate in your OS trust store once to remove browser warnings)
 - **Auth Proxy (Optional)**: Attach `mcp-auth-proxy` to a process to add OIDC authentication
 - **i18n/Theme**: Japanese/English, light/dark modes
 
@@ -40,8 +40,11 @@ All data is stored under the `~/.mcpm` directory (`mcpm` is an internal identifi
 ```text
 ~/.mcpm/
 ├── config.json      # Settings and process definitions
-├── certs/           # Self-signed certificates per hostname for HTTPS proxy
-│   └── <hostname>/
+├── certs/           # Certificates for the HTTPS proxy
+│   ├── ca/          # Local CA that signs all proxy certificates
+│   │   ├── ca-cert.pem
+│   │   └── ca-key.pem
+│   └── <proxy name>/
 │       ├── cert.pem
 │       └── key.pem
 └── logs/            # Log files
@@ -93,6 +96,8 @@ Configuration file generated based on the app's default `DEFAULT_CONFIG`. Config
     "ngrokAutoStart": false,
     "httpsProxies": {
       "my-proxy": {
+        "bindMode": "local",
+        "bindAddresses": [],
         "hostnames": ["localhost", "*.example.local"],
         "portMappings": [
           { "from": 8080, "to": 8443 },
@@ -128,11 +133,13 @@ Configuration file generated based on the app's default `DEFAULT_CONFIG`. Config
 
 Each entry is keyed by a **proxy name** (an arbitrary identifier).
 
+- **bindMode**: How listen addresses are chosen. `"local"` (default) listens on `127.0.0.1` and `::1`; `"all"` listens on `0.0.0.0` (all IPv4) and `::` (all IPv6); `"custom"` listens on the addresses in `bindAddresses`.
+- **bindAddresses**: Addresses used when `bindMode` is `"custom"` (e.g. `127.0.0.1`, `::1`, `0.0.0.0`). Any number of entries; at least one is required.
 - **hostnames**: Hostnames served by this proxy. Used as the certificate SAN and to decide which `http://` URLs are upgraded to HTTPS on redirects and in page content. Wildcards such as `*.example.local` are supported (added to the certificate as a wildcard SAN).
-- **portMappings**: One or more port mappings. Each `{ "from": <http port>, "to": <https port> }` starts an HTTPS listener on `to` that forwards to `http://127.0.0.1:<from>`.
+- **portMappings**: One or more port mappings. Each `{ "from": <http port>, "to": <https port> }` starts an HTTPS listener on `to` (on every bind address) that forwards to `http://127.0.0.1:<from>`.
 - **autoStart**: Start this proxy automatically on app launch.
 
-Settings created by older versions (a single `forwardPort`/`listenPort` keyed by hostname) are migrated to this format automatically on startup.
+Settings created by older versions (a single `forwardPort`/`listenPort` keyed by hostname) are migrated to this format automatically on startup. Entries without `bindMode` are migrated to `"local"`, or to `"custom"` when they already carry a non-default `bindAddresses` list.
 
 ## Developer Reference
 
