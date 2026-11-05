@@ -133,7 +133,7 @@ const NgrokPage: React.FC = () => {
             <Paper sx={{ p: 2, mb: 3, flexShrink: 0 }}>
                 <Stack direction='row' sx={{ mb: 1, justifyContent: 'space-between', alignItems: 'center' }}>
                     <Typography variant='h6'>{t('common.status')}</Typography>
-                    <Typography variant='body2' color='text.secondary'>
+                    <Typography variant='body2' color='textSecondary'>
                         {tunnels.length > 0 ? t('common.running') : t('common.stopped')}
                     </Typography>
                 </Stack>

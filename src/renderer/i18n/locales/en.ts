@@ -11,6 +11,7 @@ export default {
             command: 'Command',
             args: 'Arguments',
             env: 'Environment Variables',
+            workingDirectory: 'Working Directory',
             platform: 'Platform',
             wslDistribution: 'WSL Distribution',
             autoStart: 'Auto Start',
@@ -31,6 +32,10 @@ export default {
             argsTip: 'Enter arguments separated by line breaks',
             envTip: 'Enter environment variables as "name:value" separated by line breaks',
             displayNameTip: 'Enter display name (optional)',
+            workingDirectoryTip:
+                'Enter the directory to run in as an absolute path or a path starting with ~ (optional)',
+            workingDirectoryTipWsl:
+                'Enter the directory inside WSL to run in as a path starting with / or ~ (optional)',
             idExists: 'A process with this name already exists',
             authProxyNote: 'Note: Only stdio is supported',
             authProxyDisabled: 'Cannot enable until OIDC settings are set',

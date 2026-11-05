@@ -181,7 +181,9 @@ export function initializeIPC(
         if (!httpsProxyManager) return;
         try {
             await httpsProxyManager.clearLogs(hostname);
-        } catch { /* ignore */ }
+        } catch {
+            /* ignore */
+        }
     });
 
     // Updater

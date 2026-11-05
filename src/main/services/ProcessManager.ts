@@ -7,6 +7,7 @@ import { LogManager } from './LogManager';
 import { ConfigManager } from './ConfigManager';
 import { BrowserWindow } from 'electron';
 import { SystemUtils } from '../utils/SystemUtils';
+import { ProcessOutputDecoder } from '../utils/ProcessOutputDecoder';
 
 export class ProcessManager {
     private runningProcesses: Map<string, ChildProcess>;
@@ -102,6 +103,7 @@ export class ProcessManager {
         let runCommand: string | null = null;
         let runArgs: string[] = [];
         let runEnv: Record<string, string> | undefined = undefined;
+        let runCwd: string | undefined = undefined;
         let commandLogged = false;
 
         try {
@@ -123,6 +125,19 @@ export class ProcessManager {
                 if (!config.wslDistribution) {
                     await this.logManager.createLogStream(id);
                     await this.logManager.writeLog(id, 'stderr', 'WSL distribution is not specified.');
+                    this.updateProcessStatus(id, { status: 'error', pid: undefined, startedAt: undefined });
+                    return false;
+                }
+            }
+
+            // Guard: 作業ディレクトリが実行環境で利用できない
+            const platform = config.platform || 'host';
+            runCwd = this.normalizeWorkingDirectory(config.workingDirectory, platform);
+            if (runCwd) {
+                const workingDirectoryError = await this.validateWorkingDirectory(runCwd, platform);
+                if (workingDirectoryError) {
+                    await this.logManager.createLogStream(id);
+                    await this.logManager.writeLog(id, 'stderr', workingDirectoryError);
                     this.updateProcessStatus(id, { status: 'error', pid: undefined, startedAt: undefined });
                     return false;
                 }
@@ -231,22 +246,24 @@ export class ProcessManager {
                 runArgs = proxyArgs;
             }
 
+            const fallbackEncoding = await SystemUtils.getOutputFallbackEncoding();
+
             const childProcess: ChildProcess = SystemUtils.spawnCommand(runCommand, runArgs, {
-                platform: config.platform || 'host',
+                platform,
                 wslDistribution: config.wslDistribution,
                 env: runEnv,
+                cwd: runCwd,
                 windowsHide: true,
             });
 
             // Set up log streams
             await this.logManager.createLogStream(id);
 
-            childProcess.stdout?.on('data', async data => {
-                await this.logManager.writeLog(id, 'stdout', data.toString());
+            const stdoutDecoder = new ProcessOutputDecoder(fallbackEncoding, async text => {
+                await this.logManager.writeLog(id, 'stdout', text);
             });
 
-            childProcess.stderr?.on('data', async data => {
-                const text = data.toString();
+            const stderrDecoder = new ProcessOutputDecoder(fallbackEncoding, async text => {
                 const looksLikeError = (s: string): boolean => {
                     const lower = s.trim().toLowerCase();
                     if (lower.length === 0) return false;
@@ -268,18 +285,26 @@ export class ProcessManager {
                         const envStr = SystemUtils.buildDisplayEnvString(runEnv);
                         await this.logManager.writeLog(id, 'stderr', `Command (error): ${cmdline}`);
                         await this.logManager.writeLog(id, 'stderr', `Env: ${envStr}`);
+                        await this.logManager.writeLog(id, 'stderr', `Working directory: ${runCwd ?? '(default)'}`);
                         commandLogged = true;
-                    } catch { /* ignore */ }
+                    } catch {
+                        /* ignore */
+                    }
                 }
 
                 await this.logManager.writeLog(id, 'stderr', text);
             });
+
+            childProcess.stdout?.on('data', (data: Buffer) => stdoutDecoder.write(data));
+            childProcess.stderr?.on('data', (data: Buffer) => stderrDecoder.write(data));
 
             childProcess.on('error', async err => {
                 if (this.stoppingProcesses.has(id)) {
                     // Ignore errors emitted while force-stopping
                     return;
                 }
+                stdoutDecoder.flush();
+                stderrDecoder.flush();
                 const prevStartedAt = this.processStatuses.get(id)?.startedAt ?? null;
                 try {
                     if (!commandLogged) {
@@ -288,9 +313,12 @@ export class ProcessManager {
                         const envStr = SystemUtils.buildDisplayEnvString(runEnv);
                         await this.logManager.writeLog(id, 'stderr', `Command (failed): ${cmdline}`);
                         await this.logManager.writeLog(id, 'stderr', `Env: ${envStr}`);
+                        await this.logManager.writeLog(id, 'stderr', `Working directory: ${runCwd ?? '(default)'}`);
                         commandLogged = true;
                     }
-                } catch { /* ignore */ }
+                } catch {
+                    /* ignore */
+                }
                 await this.logManager.writeLog(
                     id,
                     'stderr',
@@ -307,6 +335,8 @@ export class ProcessManager {
             });
 
             childProcess.on('exit', async code => {
+                stdoutDecoder.flush();
+                stderrDecoder.flush();
                 const prevStartedAt = this.processStatuses.get(id)?.startedAt ?? null;
                 const stoppedByUser = this.stoppingProcesses.has(id);
                 if (!stoppedByUser && code && code !== 0 && !commandLogged) {
@@ -316,8 +346,11 @@ export class ProcessManager {
                         const envStr = SystemUtils.buildDisplayEnvString(runEnv);
                         await this.logManager.writeLog(id, 'stderr', `Command (exit ${code}): ${cmdline}`);
                         await this.logManager.writeLog(id, 'stderr', `Env: ${envStr}`);
+                        await this.logManager.writeLog(id, 'stderr', `Working directory: ${runCwd ?? '(default)'}`);
                         commandLogged = true;
-                    } catch { /* ignore */ }
+                    } catch {
+                        /* ignore */
+                    }
                 }
                 this.runningProcesses.delete(id);
                 await this.logManager.closeLogStream(id);
@@ -354,12 +387,43 @@ export class ProcessManager {
                 const envStr = SystemUtils.buildDisplayEnvString(runEnv);
                 await this.logManager.writeLog(id, 'stderr', `Command: ${cmdline}`);
                 await this.logManager.writeLog(id, 'stderr', `Env: ${envStr}`);
+                await this.logManager.writeLog(id, 'stderr', `Working directory: ${runCwd ?? '(default)'}`);
                 await this.logManager.writeLog(id, 'stderr', `Failed to start process: ${message}`);
-            } catch { /* ignore */ }
+            } catch {
+                /* ignore */
+            }
             this.updateProcessStatus(id, {
                 status: 'error',
             });
             return false;
+        }
+    }
+
+    // 前後の空白を除去し、ホスト OS の場合は先頭の ~ を展開する。未指定なら undefined を返す
+    private normalizeWorkingDirectory(directory: string | undefined, platform: 'host' | 'wsl'): string | undefined {
+        const trimmed = directory?.trim();
+        if (!trimmed) {
+            return undefined;
+        }
+        return platform === 'host' ? SystemUtils.expandHomeDirectory(trimmed) : trimmed;
+    }
+
+    // 作業ディレクトリとして利用できない理由を返す。利用できる場合は null を返す
+    private async validateWorkingDirectory(directory: string, platform: 'host' | 'wsl'): Promise<string | null> {
+        if (platform === 'wsl') {
+            // WSL 内の実在確認は実行時の cd に委ね、失敗内容は stderr のログに残る
+            const isAbsolute = directory === '~' || directory.startsWith('~/') || directory.startsWith('/');
+            return isAbsolute ? null : `Working directory in WSL must start with "/" or "~": ${directory}`;
+        }
+        if (!path.isAbsolute(directory)) {
+            return `Working directory must be an absolute path: ${directory}`;
+        }
+        try {
+            const stat = await fs.stat(directory);
+            return stat.isDirectory() ? null : `Working directory is not a directory: ${directory}`;
+        } catch (error) {
+            const reason = error instanceof Error ? error.message : String(error);
+            return `Cannot access working directory: ${reason}`;
         }
     }
 

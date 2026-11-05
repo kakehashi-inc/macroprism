@@ -35,6 +35,7 @@ const ProcessDialog: React.FC<ProcessDialogProps> = ({ open, onClose, server }) 
         command: '',
         args: '',
         env: '',
+        workingDirectory: '',
         platform: 'host' as 'host' | 'wsl',
         wslDistribution: '',
         autoStart: false,
@@ -57,6 +58,7 @@ const ProcessDialog: React.FC<ProcessDialogProps> = ({ open, onClose, server }) 
                 env: Object.entries(server.config.env || {})
                     .map(([key, value]) => `${key}:${value}`)
                     .join('\n'),
+                workingDirectory: server.config.workingDirectory || '',
                 platform: server.config.platform || 'host',
                 wslDistribution: server.config.wslDistribution || '',
                 autoStart: server.config.autoStart || false,
@@ -72,6 +74,7 @@ const ProcessDialog: React.FC<ProcessDialogProps> = ({ open, onClose, server }) 
                 command: '',
                 args: '',
                 env: '',
+                workingDirectory: '',
                 platform: 'host',
                 wslDistribution: wslDistributions[0]?.name || '',
                 autoStart: false,
@@ -103,6 +106,7 @@ const ProcessDialog: React.FC<ProcessDialogProps> = ({ open, onClose, server }) 
             command: formData.command,
             args,
             env: Object.keys(env).length > 0 ? env : undefined,
+            workingDirectory: formData.workingDirectory.trim() || undefined,
             displayName: formData.displayName || undefined,
             platform: formData.platform,
             wslDistribution: formData.platform === 'wsl' ? formData.wslDistribution : undefined,
@@ -186,6 +190,18 @@ const ProcessDialog: React.FC<ProcessDialogProps> = ({ open, onClose, server }) 
                         rows={3}
                         fullWidth
                         helperText={t('process.dialog.argsTip')}
+                    />
+
+                    <TextField
+                        label={t('process.fields.workingDirectory')}
+                        value={formData.workingDirectory}
+                        onChange={e => setFormData({ ...formData, workingDirectory: e.target.value })}
+                        fullWidth
+                        helperText={t(
+                            formData.platform === 'wsl'
+                                ? 'process.dialog.workingDirectoryTipWsl'
+                                : 'process.dialog.workingDirectoryTip'
+                        )}
                     />
 
                     <TextField

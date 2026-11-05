@@ -7,11 +7,7 @@ import * as net from 'net';
 import { X509Certificate, randomBytes } from 'crypto';
 import * as forge from 'node-forge';
 import { ConfigManager } from './ConfigManager';
-import {
-    HTTPS_PROXY_ALL_BIND_ADDRESSES,
-    HTTPS_PROXY_LOCAL_BIND_ADDRESSES,
-    getCertsPath,
-} from '../../shared/constants';
+import { HTTPS_PROXY_ALL_BIND_ADDRESSES, HTTPS_PROXY_LOCAL_BIND_ADDRESSES, getCertsPath } from '../../shared/constants';
 import { HttpsProxies, HttpsProxyConfig, HttpsProxyStatus } from '../../shared/types';
 import { HttpsUrlRewriter } from './HttpsUrlRewriter';
 
@@ -74,9 +70,7 @@ export class HttpsProxyManager {
 
     private generateKeyPair(): Promise<forge.pki.rsa.KeyPair> {
         return new Promise((resolve, reject) => {
-            forge.pki.rsa.generateKeyPair({ bits: 2048 }, (err, keys) =>
-                err ? reject(err) : resolve(keys)
-            );
+            forge.pki.rsa.generateKeyPair({ bits: 2048 }, (err, keys) => (err ? reject(err) : resolve(keys)));
         });
     }
 
@@ -157,7 +151,9 @@ export class HttpsProxyManager {
         if (!stream) {
             try {
                 await fs.mkdir(this.getLogDir(), { recursive: true });
-            } catch { /* ignore */ }
+            } catch {
+                /* ignore */
+            }
             stream = fsNode.createWriteStream(filePath, { flags: 'a' });
             this.logStreams.set(filePath, stream);
         }
@@ -174,7 +170,9 @@ export class HttpsProxyManager {
                 now.getHours()
             )}:${pad(now.getMinutes())}:${pad(now.getSeconds())}.${pad3(now.getMilliseconds())}`;
             stream.write(`[${ts}] [${name}] ${message}\n`);
-        } catch { /* ignore */ }
+        } catch {
+            /* ignore */
+        }
     }
 
     async readLogs(_name: string, lines: number = 200): Promise<string[]> {
@@ -192,7 +190,9 @@ export class HttpsProxyManager {
         try {
             const file = this.getLogFilePath();
             await fs.writeFile(file, '', 'utf-8');
-        } catch { /* ignore */ }
+        } catch {
+            /* ignore */
+        }
     }
 
     private async readFileIfExists(filePath: string): Promise<string | null> {
@@ -318,16 +318,13 @@ export class HttpsProxyManager {
         const certNames = new Set(this.parseCertDnsNames(certContent));
         const wanted = (hostnames || []).map(h => h.trim().toLowerCase()).filter(Boolean);
         const wantedSet = new Set(wanted);
-        const hostnamesMatch =
-            certNames.size === wantedSet.size && wanted.every(h => certNames.has(h));
+        const hostnamesMatch = certNames.size === wantedSet.size && wanted.every(h => certNames.has(h));
 
         // 現在のCAで署名された証明書か(旧方式の自己署名や、CA再生成前の証明書は再発行する)。
         let issuedByCa = false;
         if (certContent) {
             try {
-                issuedByCa = new X509Certificate(certContent).verify(
-                    new X509Certificate(caCertPem).publicKey
-                );
+                issuedByCa = new X509Certificate(certContent).verify(new X509Certificate(caCertPem).publicKey);
             } catch {
                 issuedByCa = false;
             }
@@ -360,7 +357,9 @@ export class HttpsProxyManager {
             try {
                 const certPem = readFileSync(certPath, 'utf-8');
                 validTo = this.parseValidTo(certPem);
-            } catch { /* ignore */ }
+            } catch {
+                /* ignore */
+            }
             results.push({
                 name,
                 hostnames: cfg.hostnames || [],
@@ -394,11 +393,8 @@ export class HttpsProxyManager {
                 : bindMode === 'all'
                   ? HTTPS_PROXY_ALL_BIND_ADDRESSES
                   : cfg.bindAddresses || [];
-        const bindAddresses = Array.from(
-            new Set(rawAddresses.map(a => a.trim()).filter(Boolean))
-        );
-        if (bindAddresses.length === 0)
-            throw new Error(`HTTPS proxy '${name}' has no bind addresses`);
+        const bindAddresses = Array.from(new Set(rawAddresses.map(a => a.trim()).filter(Boolean)));
+        if (bindAddresses.length === 0) throw new Error(`HTTPS proxy '${name}' has no bind addresses`);
 
         const { certPath, keyPath, validTo } = await this.ensureCertificate(name, hostnames);
         const key = await fs.readFile(keyPath);
@@ -433,12 +429,7 @@ export class HttpsProxyManager {
                         memoizeHost: false,
                         // リダイレクト(Locationヘッダ)の絶対URLを同一ルールで書き換え
                         userResHeaderDecorator: (headers: Record<string, any>) => {
-                            const key2 =
-                                'location' in headers
-                                    ? 'location'
-                                    : 'Location' in headers
-                                      ? 'Location'
-                                      : null;
+                            const key2 = 'location' in headers ? 'location' : 'Location' in headers ? 'Location' : null;
                             const loc = key2 ? headers[key2] : undefined;
                             if (key2 && typeof loc === 'string' && loc) {
                                 try {
@@ -447,7 +438,9 @@ export class HttpsProxyManager {
                                         headers[key2] = rewritten;
                                         void this.log(name, `Redirect rewritten: ${loc} -> ${rewritten}`);
                                     }
-                                } catch { /* ignore */ }
+                                } catch {
+                                    /* ignore */
+                                }
                             }
                             return headers;
                         },
@@ -464,10 +457,7 @@ export class HttpsProxyManager {
                             // 文字列として置換すると本文が壊れる。ホワイトリスト方式で素通しする。
                             const enc = String(proxyRes.headers['content-encoding'] || '').toLowerCase();
                             if (enc && enc !== 'gzip' && enc !== 'identity') {
-                                void this.log(
-                                    name,
-                                    `Body rewrite skipped (unsupported content-encoding: ${enc})`
-                                );
+                                void this.log(name, `Body rewrite skipped (unsupported content-encoding: ${enc})`);
                                 return proxyResData;
                             }
                             const body = proxyResData.toString('utf8');
@@ -478,7 +468,9 @@ export class HttpsProxyManager {
                             await this.log(name, `Proxy error (upstream) occurred.`);
                             try {
                                 next();
-                            } catch { /* ignore */ }
+                            } catch {
+                                /* ignore */
+                            }
                         },
                     })
                 );
@@ -509,15 +501,16 @@ export class HttpsProxyManager {
                             (isTls ? tlsServer : redirectServer).emit('connection', socket);
                             process.nextTick(() => socket.resume());
                         });
-                        socket.on('error', () => { /* ignore */ });
+                        socket.on('error', () => {
+                            /* ignore */
+                        });
                     });
                     await new Promise<void>((resolve, reject) => {
                         server.once('error', err => reject(err));
                         // '::' はIPv6専用でバインドする (既定のデュアルスタックだとIPv4も掴み、
                         // 同一ポートの 0.0.0.0 と衝突するため。IPv4側は 0.0.0.0 が担う)
-                        server.listen(
-                            { port: mapping.to, host: bindAddress, ipv6Only: bindAddress === '::' },
-                            () => resolve()
+                        server.listen({ port: mapping.to, host: bindAddress, ipv6Only: bindAddress === '::' }, () =>
+                            resolve()
                         );
                     });
                     await this.log(name, `Proxy started on ${bindAddress}:${mapping.to}`);
@@ -529,7 +522,9 @@ export class HttpsProxyManager {
             for (const s of [...servers, ...innerServers]) {
                 try {
                     s.close();
-                } catch { /* ignore */ }
+                } catch {
+                    /* ignore */
+                }
             }
             throw err;
         }
@@ -556,8 +551,12 @@ export class HttpsProxyManager {
         for (const s of inner) {
             try {
                 (s as any).closeAllConnections?.();
-                s.close(() => { /* not listening; ignore result */ });
-            } catch { /* ignore */ }
+                s.close(() => {
+                    /* not listening; ignore result */
+                });
+            } catch {
+                /* ignore */
+            }
         }
         this.innerServers.delete(name);
         for (const server of servers) {

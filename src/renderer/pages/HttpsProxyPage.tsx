@@ -497,7 +497,7 @@ const HttpsProxyPage: React.FC = () => {
                                     {t('httpsProxy.addHostname')}
                                 </Button>
                             </Box>
-                            <Typography variant='caption' color='text.secondary' sx={{ display: 'block' }}>
+                            <Typography variant='caption' color='textSecondary' sx={{ display: 'block' }}>
                                 {t('httpsProxy.hostnamesHint')}
                             </Typography>
                         </Box>
@@ -556,7 +556,7 @@ const HttpsProxyPage: React.FC = () => {
                                     </Box>
                                     <Typography
                                         variant='caption'
-                                        color='text.secondary'
+                                        color='textSecondary'
                                         sx={{ display: 'block' }}
                                     >
                                         {t('httpsProxy.bindAddressesHint')}
@@ -565,7 +565,7 @@ const HttpsProxyPage: React.FC = () => {
                             ) : (
                                 <Typography
                                     variant='caption'
-                                    color='text.secondary'
+                                    color='textSecondary'
                                     sx={{ display: 'block' }}
                                 >
                                     {bindMode === 'local'
@@ -621,7 +621,7 @@ const HttpsProxyPage: React.FC = () => {
 
                         {statusForEditing ? (
                             <Box>
-                                <Typography variant='caption' color='text.secondary'>
+                                <Typography variant='caption' color='textSecondary'>
                                     {t('httpsProxy.certPaths')}
                                 </Typography>
                                 <Box sx={{ fontFamily: 'monospace', mt: 0.5 }}>
@@ -630,7 +630,7 @@ const HttpsProxyPage: React.FC = () => {
                                 </Box>
                                 {statusForEditing.validTo ? (
                                     <Box sx={{ mt: 1 }}>
-                                        <Typography variant='caption' color='text.secondary'>
+                                        <Typography variant='caption' color='textSecondary'>
                                             {t('httpsProxy.expiresAt')}
                                         </Typography>
                                         <Typography variant='body2'>

@@ -1,11 +1,25 @@
 import { exec, spawn, ChildProcess } from 'child_process';
 import { promisify } from 'util';
 import * as os from 'os';
+import * as path from 'path';
 import { SystemInfo, WSLDistribution } from '../../shared/types';
 
 const execAsync = promisify(exec);
 
+// Windows の OEM コードページと TextDecoder のエンコーディング名の対応
+const OEM_CODE_PAGE_ENCODINGS: Record<string, string> = {
+    '866': 'ibm866',
+    '874': 'windows-874',
+    '932': 'shift_jis',
+    '936': 'gbk',
+    '949': 'euc-kr',
+    '950': 'big5',
+    '1258': 'windows-1258',
+};
+
 export class SystemUtils {
+    private static outputFallbackEncoding: Promise<string | null> | null = null;
+
     static async getSystemInfo(): Promise<SystemInfo> {
         const wslAvailable = await this.isWSLAvailable();
 
@@ -104,6 +118,29 @@ export class SystemUtils {
         }
     }
 
+    // UTF-8 ではないコンソール出力の読み取りに使うエンコーディング名を返す。
+    // Windows の OEM コードページをレジストリから一度だけ読み取り、対応がなければ null を返す。
+    static getOutputFallbackEncoding(): Promise<string | null> {
+        this.outputFallbackEncoding ??= this.readOutputFallbackEncoding();
+        return this.outputFallbackEncoding;
+    }
+
+    private static async readOutputFallbackEncoding(): Promise<string | null> {
+        if (process.platform !== 'win32') {
+            return null;
+        }
+        try {
+            const { stdout } = await execAsync(
+                'reg query "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Nls\\CodePage" /v OEMCP',
+                { windowsHide: true }
+            );
+            const codePage = /OEMCP\s+REG_SZ\s+(\d+)/.exec(stdout)?.[1];
+            return (codePage && OEM_CODE_PAGE_ENCODINGS[codePage]) || null;
+        } catch {
+            return null;
+        }
+    }
+
     // Unified command execution utilities
     static spawnCommand(
         command: string,
@@ -124,17 +161,9 @@ export class SystemUtils {
                 throw new Error('WSL distribution is required for platform "wsl"');
             }
 
-            const envParts = Object.entries(options.env || {}).map(
-                ([key, value]) => `${key}=${this.quoteEnvValueForShell(value)}`
-            );
-            const argsStr = (args || []).map(a => this.quoteArgForShell(a)).join(' ');
-            const bashCommand = [envParts.join(' '), command, argsStr]
-                .filter(part => part && part.length > 0)
-                .join(' ')
-                .trim();
+            const bashCommand = this.buildWslShellCommand(command, args, options.env, options.cwd);
 
             return spawn('wsl.exe', ['-d', options.wslDistribution, '--', 'bash', '-lc', bashCommand], {
-                cwd: options.cwd,
                 windowsHide,
                 shell: false,
             });
@@ -179,6 +208,38 @@ export class SystemUtils {
         }
 
         return child;
+    }
+
+    // WSL の bash -lc で実行するコマンド文字列を組み立てる。cwd は WSL 内のパスとして扱う
+    static buildWslShellCommand(
+        command: string,
+        args: string[] = [],
+        env?: Record<string, string>,
+        cwd?: string
+    ): string {
+        const envParts = Object.entries(env || {}).map(([key, value]) => `${key}=${this.quoteEnvValueForShell(value)}`);
+        const argsStr = (args || []).map(a => this.quoteArgForShell(a)).join(' ');
+        const commandLine = [envParts.join(' '), command, argsStr]
+            .filter(part => part && part.length > 0)
+            .join(' ')
+            .trim();
+        return cwd ? `${this.buildShellChangeDirectory(cwd)} && ${commandLine}` : commandLine;
+    }
+
+    // bash の cd コマンドを組み立てる。先頭の ~ はクォートの外で $HOME に置き換えて展開させる
+    static buildShellChangeDirectory(directory: string): string {
+        if (directory === '~') return 'cd -- "$HOME"';
+        if (directory.startsWith('~/')) return `cd -- "$HOME"/${this.quoteArgForShell(directory.slice(2))}`;
+        return `cd -- ${this.quoteArgForShell(directory)}`;
+    }
+
+    // 先頭の ~ をホスト OS のホームディレクトリに展開する
+    static expandHomeDirectory(directory: string): string {
+        if (directory === '~') return os.homedir();
+        if (directory.startsWith('~/') || directory.startsWith('~\\')) {
+            return path.join(os.homedir(), directory.slice(2));
+        }
+        return directory;
     }
 
     // ---------- Quoting helpers ----------

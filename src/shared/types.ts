@@ -2,6 +2,7 @@
 export interface ProcessConfig {
     command: string;
     args: string[];
+    workingDirectory?: string; // 実行時の作業ディレクトリ（platform が wsl の場合は WSL 内のパス）
     env?: Record<string, string>;
     displayName?: string;
     platform?: 'host' | 'wsl';

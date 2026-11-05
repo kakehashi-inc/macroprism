@@ -1,18 +1,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import {
-    AppConfig,
-    AppSettings,
-    ProcessConfig,
-    Processes,
-    HttpsProxies,
-    HttpsProxyConfig,
-} from '../../shared/types';
-import {
-    DEFAULT_CONFIG,
-    HTTPS_PROXY_LOCAL_BIND_ADDRESSES,
-    getConfigPath,
-} from '../../shared/constants';
+import { AppConfig, AppSettings, ProcessConfig, Processes, HttpsProxies, HttpsProxyConfig } from '../../shared/types';
+import { DEFAULT_CONFIG, HTTPS_PROXY_LOCAL_BIND_ADDRESSES, getConfigPath } from '../../shared/constants';
 
 export class ConfigManager {
     private config: AppConfig;
@@ -47,9 +36,7 @@ export class ConfigManager {
             const legacyProcesses = loadedConfig.mcpServers;
             const hasLegacyProcesses = !loadedConfig.processes && legacyProcesses;
             // HTTPSプロキシ設定を新レイアウト(プロキシ名/複数ホスト名/複数ポート転送)へ移行
-            const { proxies: migratedProxies, changed: httpsChanged } = migrateHttpsProxies(
-                loadedConfig.httpsProxies
-            );
+            const { proxies: migratedProxies, changed: httpsChanged } = migrateHttpsProxies(loadedConfig.httpsProxies);
             // Merge with defaults to ensure all fields exist
             this.config = {
                 processes: loadedConfig.processes || legacyProcesses || {},
@@ -205,11 +192,8 @@ export function migrateHttpsProxies(raw: any): { proxies: HttpsProxies; changed:
     const out: HttpsProxies = {};
     let changed = false;
     for (const [key, value] of Object.entries<any>(src)) {
-        const hasBindMode =
-            value?.bindMode === 'local' || value?.bindMode === 'all' || value?.bindMode === 'custom';
-        const rawAddresses: string[] = Array.isArray(value?.bindAddresses)
-            ? value.bindAddresses
-            : [];
+        const hasBindMode = value?.bindMode === 'local' || value?.bindMode === 'all' || value?.bindMode === 'custom';
+        const rawAddresses: string[] = Array.isArray(value?.bindAddresses) ? value.bindAddresses : [];
         let bindMode = value?.bindMode;
         if (!hasBindMode) {
             const isLocalDefaults =
@@ -236,8 +220,7 @@ export function migrateHttpsProxies(raw: any): { proxies: HttpsProxies; changed:
             bindMode,
             bindAddresses: rawAddresses,
             hostnames: [key],
-            portMappings:
-                Number.isFinite(from) && Number.isFinite(to) ? [{ from, to }] : [],
+            portMappings: Number.isFinite(from) && Number.isFinite(to) ? [{ from, to }] : [],
             autoStart: !!value?.autoStart,
         };
         changed = true;

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [v0.4.2] - 2026-11-05
+
+### Added
+
+- Processes can now have a **working directory**. Set it in the process dialog to choose the directory a command runs in; the process list then shows it in small text under the command. On WSL, enter a path inside the distribution. If the directory cannot be used, the process does not run and the reason appears in its log.
+
+### Changed
+
+- Text across the app is slightly smaller: body text is now 14px and captions 12px, as the design intended.
+
+### Fixed
+
+- Secondary text such as process identifiers and hints now appears in a lighter color instead of the same color as body text.
+- Process logs no longer garble messages written in the system's console encoding, such as Japanese error messages from PowerShell. UTF-8 output in the same log stays readable too. Entries that were already garbled when written remain as they are.
+
 ## [v0.4.1] - 2026-07-03
 
 ### Added

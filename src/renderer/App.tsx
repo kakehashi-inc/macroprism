@@ -48,21 +48,21 @@ function App() {
             ].join(','),
             fontSize: 14, // base 14px
             // Title (page/app titles): 18px
-            h1: { fontSize: '1.286rem', fontWeight: 600, lineHeight: 1.4 },
-            h2: { fontSize: '1.286rem', fontWeight: 600, lineHeight: 1.4 },
-            h3: { fontSize: '1.286rem', fontWeight: 600, lineHeight: 1.4 },
-            h4: { fontSize: '1.286rem', fontWeight: 600, lineHeight: 1.4 },
+            h1: { fontSize: '1.125rem', fontWeight: 600, lineHeight: 1.4 },
+            h2: { fontSize: '1.125rem', fontWeight: 600, lineHeight: 1.4 },
+            h3: { fontSize: '1.125rem', fontWeight: 600, lineHeight: 1.4 },
+            h4: { fontSize: '1.125rem', fontWeight: 600, lineHeight: 1.4 },
             // Section/Dialog titles: 16px
-            h5: { fontSize: '1.143rem', fontWeight: 600, lineHeight: 1.5 },
-            h6: { fontSize: '1.143rem', fontWeight: 600, lineHeight: 1.5 },
+            h5: { fontSize: '1rem', fontWeight: 600, lineHeight: 1.5 },
+            h6: { fontSize: '1rem', fontWeight: 600, lineHeight: 1.5 },
             // Body/controls: 14px
-            body1: { fontSize: '1rem' },
-            subtitle1: { fontSize: '1rem' },
-            button: { fontSize: '1rem', textTransform: 'none' },
+            body1: { fontSize: '0.875rem' },
+            subtitle1: { fontSize: '0.875rem' },
+            button: { fontSize: '0.875rem', textTransform: 'none' },
             // Caption/secondary: 12px
-            body2: { fontSize: '0.857rem' },
-            subtitle2: { fontSize: '0.857rem' },
-            caption: { fontSize: '0.857rem' },
+            body2: { fontSize: '0.75rem' },
+            subtitle2: { fontSize: '0.75rem' },
+            caption: { fontSize: '0.75rem' },
         },
     });
 

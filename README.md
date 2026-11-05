@@ -64,6 +64,7 @@ Configuration file generated based on the app's default `DEFAULT_CONFIG`. Config
     "web-app": {
       "command": "node",
       "args": ["server.js"],
+      "workingDirectory": "~/projects/web-app",
       "env": {
         "NODE_ENV": "production"
       },
@@ -120,6 +121,7 @@ Configuration file generated based on the app's default `DEFAULT_CONFIG`. Config
 
 - **command**: Executable command
 - **args**: Argument array
+- **workingDirectory**: Working directory at run time (optional). On `"host"`, an absolute path or a path starting with `~`; on `"wsl"`, a path inside WSL starting with `/` or `~`. When omitted, the process inherits MacroPrism's working directory
 - **env**: Environment variables
 - **displayName**: Display name
 - **platform**: Execution environment ("host" | "wsl")

@@ -154,7 +154,9 @@ function createWindow() {
         // Ensure DevTools are visible in development
         try {
             mainWindow.webContents.openDevTools({ mode: 'detach' });
-        } catch { /* ignore */ }
+        } catch {
+            /* ignore */
+        }
         // Keyboard shortcuts to toggle DevTools without menu
         mainWindow.webContents.on('before-input-event', (event, input) => {
             const isToggleCombo =
@@ -301,7 +303,9 @@ app.on('before-quit', async e => {
         logManager.stopRotation();
         try {
             tray?.destroy();
-        } catch { /* ignore */ }
+        } catch {
+            /* ignore */
+        }
         if (updaterService.isInstalling()) {
             // An update install is pending: let the native updater quit and relaunch with the new
             // version. A hard app.exit(0) here would kill the process before Squirrel.Mac finishes

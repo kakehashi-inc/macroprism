@@ -121,7 +121,7 @@ const ProcessesPage: React.FC = () => {
                     </Typography>
                     <Typography
                         variant='caption'
-                        color='text.secondary'
+                        color='textSecondary'
                         noWrap
                         sx={{
                             maxWidth: '40ch',
@@ -212,11 +212,36 @@ const ProcessesPage: React.FC = () => {
                                         >
                                             {server.config.command} {server.config.args.join(' ')}
                                         </Typography>
+                                        {server.config.workingDirectory?.trim() && (
+                                            <Typography
+                                                variant='caption'
+                                                color='textSecondary'
+                                                sx={{
+                                                    whiteSpace: 'nowrap',
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis',
+                                                    display: 'block',
+                                                    maxWidth: '60ch',
+                                                }}
+                                                title={server.config.workingDirectory.trim()}
+                                            >
+                                                {server.config.workingDirectory.trim()}
+                                            </Typography>
+                                        )}
                                     </TableCell>
                                     <TableCell>
                                         {server.config.platform === 'wsl'
-                                            ? `WSL (${server.config.wslDistribution})`
+                                            ? t('process.platform.wsl')
                                             : t('process.platform.host')}
+                                        {server.config.platform === 'wsl' && server.config.wslDistribution && (
+                                            <Typography
+                                                variant='caption'
+                                                color='textSecondary'
+                                                sx={{ display: 'block', whiteSpace: 'nowrap' }}
+                                            >
+                                                {server.config.wslDistribution}
+                                            </Typography>
+                                        )}
                                     </TableCell>
                                     <TableCell>
                                         <Typography variant='body2' sx={{ fontFamily: 'monospace' }}>
@@ -272,7 +297,7 @@ const ProcessesPage: React.FC = () => {
                         {processes.length === 0 && (
                             <TableRow>
                                 <TableCell colSpan={6} align='center'>
-                                    <Typography variant='body2' color='text.secondary'>
+                                    <Typography variant='body2' color='textSecondary'>
                                         No processes configured
                                     </Typography>
                                 </TableCell>

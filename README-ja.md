@@ -64,6 +64,7 @@ MacroPrism（マクロプリズム） — ローカル環境の自動化ハブ�
     "web-app": {
       "command": "node",
       "args": ["server.js"],
+      "workingDirectory": "~/projects/web-app",
       "env": {
         "NODE_ENV": "production"
       },
@@ -120,6 +121,7 @@ MacroPrism（マクロプリズム） — ローカル環境の自動化ハブ�
 
 - **command**: 実行コマンド
 - **args**: 引数配列
+- **workingDirectory**: 実行時の作業ディレクトリ（任意）。`"host"` では絶対パスまたは `~` から始まるパス、`"wsl"` では `/` または `~` から始まる WSL 内のパス。省略時は MacroPrism の作業ディレクトリを引き継ぐ
 - **env**: 環境変数
 - **displayName**: 表示名
 - **platform**: 実行環境 ("host" | "wsl")
